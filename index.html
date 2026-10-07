@@ -952,6 +952,9 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
 .fin td.r,.fin td.mono{white-space:nowrap}
 @media (max-width:860px){.accv{margin-left:0;width:100%}.hbar.fb{grid-template-columns:minmax(70px,110px) minmax(0,1fr) 84px}}
 .logo{padding:0 18px 18px}.logo img{display:block;width:100%;max-width:187px;height:auto}
+.sidetog{position:absolute;top:12px;right:12px;z-index:900;box-shadow:var(--shadow)}
+#v-mapa.side-off{grid-template-columns:minmax(0,1fr)}#v-mapa.side-off .side{display:none}
+@media (max-width:860px){#v-mapa.side-off{grid-template-rows:minmax(0,1fr);overflow:clip}.sidetog{top:auto;bottom:12px}.mapsearch{width:calc(100% - 64px)}}
 </style>
 </head>
 <body>
@@ -978,6 +981,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
     <section id="v-mapa" class="view" hidden>
       <div class="mapwrap">
         <div id="map" role="region" aria-label="Mapa da rota"></div>
+        <button type="button" class="btn sidetog" id="side-tog" aria-expanded="true" aria-controls="side-panel">Ocultar painel ›</button>
         <div id="pickhint" class="pickhint" hidden>Clique no mapa para marcar o local</div>
         <details class="legend" id="legend"><summary>Legenda e camadas</summary>
           <h4>Situação das notificações</h4><div class="stkey"><span><i style="background:var(--st-plan)"></i>Planejado</span><span><i style="background:var(--good)"></i>Atendido</span><span><i style="background:var(--critical)"></i>Não atendido / passou da data / cancelado</span></div>
@@ -994,7 +998,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
           <span class="hint" id="base-note" style="max-width:260px"></span>
         </details>
       </div>
-      <aside class="side">
+      <aside class="side" id="side-panel">
         <div class="side-head">
           <div class="chips" id="chips-tipo" aria-label="Tipos"></div>
           <div class="row">
@@ -1358,7 +1362,9 @@ function renderSinal(){G.sinal.clearLayers();if(!S.rota)return;
     if(!runs.length)L.polyline(pts.length>1?pts:[pts[0],pts[0]],st).on('click',()=>openItem(it.id)).addTo(G.sinal);}}
 
 /* ================= painel lateral ================= */
-function renderSide(){const body=$('#side-body');
+function sideShow(on){$('#v-mapa').classList.toggle('side-off',!on);const t=$('#side-tog');t.setAttribute('aria-expanded',on);t.textContent=on?'Ocultar painel ›':'‹ Filtros e lista';setTimeout(()=>map.invalidateSize(),30);}
+$('#side-tog').onclick=()=>sideShow($('#v-mapa').classList.contains('side-off'));
+function renderSide(){const body=$('#side-body');if((S.edit||S.form)&&$('#v-mapa').classList.contains('side-off'))sideShow(true);
   if(S.edit){renderEditSide(body);return;}
   if(S.form){renderForm(body);return;}
   const list=filtered();const semCoord=list.filter(i=>i.lat==null).length;
