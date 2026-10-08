@@ -1037,7 +1037,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
     <section id="v-lista" class="view" hidden>
       <div class="page">
         <div class="row"><div class="grow"><h2>Notificações e atividades</h2><p class="lede">Mesmos filtros do mapa. Status, equipe e ação mudam direto na tabela e ficam salvos para todo o time.</p></div>
-          <button class="btn" id="btn-csv">Baixar CSV</button></div>
+          <div class="row"><span class="hint">Relatório com os filtros atuais:</span><button class="btn primary" id="ls-pdf">PDF</button><button class="btn" id="ls-xls">Excel</button><button class="btn" id="ls-kmz">KMZ</button><button class="btn" id="ls-rel">Personalizar…</button><button class="btn" id="btn-csv">CSV completo</button></div></div>
         <div class="card"><div class="tablewrap" id="tbl-notif"></div></div>
       </div>
     </section>
@@ -2161,6 +2161,15 @@ function renderRel(){const box=$('#rel-body');if(!box)return;if(!REL._init){REL.
   box.querySelectorAll('[data-rc]').forEach(c=>c.onchange=()=>{c.checked?REL.cid.add(c.dataset.rc):REL.cid.delete(c.dataset.rc);renderRel();});
   $('#rl-all').onclick=()=>{REL.cid.clear();renderRel();};
   $('#rl-pdf').onclick=()=>relPdf(rows,res);$('#rl-xls').onclick=()=>relXlsx(rows,res);$('#rl-kmz').onclick=()=>relKmz(rows);}
+function relFromFilters(){let de='',ate='';
+  if(S.de||S.ate){de=S.de;ate=S.ate;}else if(S.mes!=='todos'&&S.mes!=='sem-data'){const y=+S.mes.slice(0,4),m=+S.mes.slice(5);de=isoD(new Date(y,m-1,1));ate=isoD(new Date(y,m,0));}
+  REL._init=1;REL.de=de;REL.ate=ate;REL.cid=new Set(S.cidade!=='todas'?[S.cidade]:[]);
+  const all=TIPOS.filter(x=>x.id!=='RETIRADA DE EQUIPAMENTO').map(x=>x.id);const sel=all.filter(x=>S.tipos.has(x));REL.tipos=new Set(sel.length===all.length?[]:sel);REL.res=new Set();
+  const rows=relRows();return [rows,relResumo(rows)];}
+$('#ls-pdf').onclick=()=>{const [r,s]=relFromFilters();if(!r.length){toast('Nenhuma notificação com rede nossa nesse filtro');return;}relPdf(r,s);};
+$('#ls-xls').onclick=()=>{const [r,s]=relFromFilters();if(!r.length){toast('Nenhuma notificação com rede nossa nesse filtro');return;}relXlsx(r,s);};
+$('#ls-kmz').onclick=()=>{const [r]=relFromFilters();relKmz(r);};
+$('#ls-rel').onclick=()=>{relFromFilters();showView('rel');};
 const relLinhas=rows=>rows.map(i=>[fmtData(i.data),i.numero||'',tipoOf(i.tipo).label,cityName(i.cidade),i.acao2||'',resultOf(i)]);
 const relNome=ext=>`relatorio_atuacao_${(REL.de||'inicio')}_a_${(REL.ate||hoje())}.${ext}`;
 async function salvar(filename,data,tipo){if(!downloads){toast('Download indisponível nesta visualização');return false;}
