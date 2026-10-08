@@ -955,6 +955,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
 .sidetog{position:absolute;top:12px;right:12px;z-index:900;box-shadow:var(--shadow)}
 #v-mapa.side-off{grid-template-columns:minmax(0,1fr)}#v-mapa.side-off .side{display:none}
 @media (max-width:860px){#v-mapa.side-off{grid-template-rows:minmax(0,1fr);overflow:clip}.sidetog{top:auto;bottom:12px}.mapsearch{width:calc(100% - 64px)}}
+.basectl{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:4px 4px 4px 10px;box-shadow:var(--shadow);font:600 13px var(--f-body);margin-bottom:22px!important}.basectl select{border:0;padding:5px 6px;font-weight:600}
 </style>
 </head>
 <body>
@@ -1205,7 +1206,22 @@ let db=null,assets=null,user=null,downloads=null,sample=null,canWrite=null,myId=
 /* ================= mapa ================= */
 const map=L.map('map',{preferCanvas:true,zoomControl:true,attributionControl:true,maxZoom:19}).setView([-22.95,-47.06],11);
 map.attributionControl.setPrefix(false);
-if(window.GOM_TILES)L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+const BASES={
+  ruas:{label:'Ruas',make:()=>L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'})},
+  claro:{label:'Claro (limpo)',make:()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'})},
+  satelite:{label:'Satélite',dark:true,make:()=>L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:18,attribution:'Imagens © Esri, Maxar, Earthstar Geographics'}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:18,opacity:.8}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:18})])},
+  relevo:{label:'Relevo',make:()=>L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,subdomains:'abc',attribution:'© OpenStreetMap, SRTM · © OpenTopoMap'})}};
+let baseCur=null,baseLyr=null;
+function setBase(k){if(!BASES[k])k='ruas';if(baseLyr)map.removeLayer(baseLyr);baseLyr=BASES[k].make();baseLyr.addTo(map);if(baseLyr.bringToBack)baseLyr.bringToBack();baseCur=k;
+  const r=document.documentElement.style;if(BASES[k].dark){r.setProperty('--cabo','#f2f6f3');r.setProperty('--muni','#e8eef0');}else{r.removeProperty('--cabo');r.removeProperty('--muni');}
+  try{localStorage.setItem('gom-base',k);}catch(e){}
+  if(typeof S!=='undefined'&&S.rota)drawRota();if(typeof drawMun==='function')drawMun();const sel=document.getElementById('base-sel');if(sel)sel.value=k;}
+if(window.GOM_TILES){let k0='ruas';try{k0=localStorage.getItem('gom-base')||'ruas';}catch(e){}
+  const BaseCtl=L.Control.extend({options:{position:'bottomright'},onAdd(){const d=L.DomUtil.create('label','basectl');d.innerHTML='<span>Mapa</span><select id="base-sel" aria-label="Tipo de mapa">'+Object.entries(BASES).map(([k,b])=>`<option value="${k}">${b.label}</option>`).join('')+'</select>';
+    L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);d.querySelector('select').onchange=e=>setBase(e.target.value);return d;}});
+  new BaseCtl().addTo(map);setTimeout(()=>setBase(k0),0);}
 ['mun','ruas','aura','sinal','cabos','sub','novos'].forEach((p,i)=>{map.createPane(p).style.zIndex=250+i*20;});
 map.getPane('ruas').style.pointerEvents='none';
 const rMun=L.canvas({pane:'mun'}),rAura=L.canvas({pane:'aura'}),rSinal=L.canvas({pane:'sinal'}),rCabo=L.canvas({pane:'cabos',tolerance:6}),rSub=L.canvas({pane:'sub',tolerance:6}),rNovo=L.canvas({pane:'novos'});
