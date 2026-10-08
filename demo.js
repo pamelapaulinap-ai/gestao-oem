@@ -1,7 +1,7 @@
 /* Gestão O&M — modo demonstração: dados fictícios guardados só neste navegador (localStorage).
    Substitui o banco do protótipo até a ligação com o banco de dados e o login da empresa. */
 (function(){
-const KEY='gestao-oem-demo-v1';window.GOM_TILES=true;
+const KEY='gestao-oem-demo-v2';window.GOM_TILES=true;
 let store={};const subs=[];let ready;
 const clone=o=>JSON.parse(JSON.stringify(o));
 function merge(a,b){for(const k in b){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object'&&!Array.isArray(a[k]))merge(a[k],b[k]);else a[k]=b[k];}return a;}
@@ -23,10 +23,10 @@ async function load(reset){let s=null;if(!reset){try{s=JSON.parse(localStorage.g
   if(!s){try{s=await (await realFetch('dados-exemplo.json')).json();}catch(e){s={};}}store=s;persist();}
 ready=load(false);
 window.claude={use:async n=>{await ready;return ({db,assets,user,downloads})[n]||null;}};
-const st=document.createElement('style');st.textContent='.navi[data-v=fin],.navi[data-v=comb],[data-seg=fin],[data-seg=comb]{display:none!important}.demo-bar a{color:inherit;font-weight:600}';document.head.appendChild(st);
+const st=document.createElement('style');st.textContent='.demo-bar a{color:inherit;font-weight:600}';document.head.appendChild(st);
 function bar(){const b=document.getElementById('banner');if(!b)return;b.className='banner demo-bar';b.hidden=false;
-  b.innerHTML='Versão de demonstração: os cabos e as notificações são fictícios e o que você alterar fica salvo só neste navegador. Financeiro, combustível e leitura automática de e-mails entram quando o login estiver ligado. <a href="#" id="demo-reset">Restaurar dados de exemplo</a>';
+  b.innerHTML='Versão de demonstração: cabos, notificações, financeiro e combustível são fictícios, e o que você alterar ou importar fica salvo só neste navegador. A leitura automática de e-mails entra quando o login estiver ligado. <a href="#" id="demo-reset">Restaurar dados de exemplo</a>';
   document.getElementById('demo-reset').onclick=async e=>{e.preventDefault();await load(true);location.reload();};
-  const c=document.querySelector('.crumbs');if(c)c.innerHTML=c.innerHTML.replace(/\s*<i>\|<\/i>\s*Financeiro\s*<i>\|<\/i>\s*Combustível/,'');}
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bar);else bar();
 })();
