@@ -1,6 +1,7 @@
 /* Gestão O&M — modo local: os dados ficam guardados só neste navegador (IndexedDB),
    até a ligação com o banco de dados e o login da empresa. */
 (function(){
+if(window.GOM_ONLINE)return;
 window.GOM_TILES=true;
 const DBN='gestao-oem',ST='kv';let store={},blobs={};const subs=[];
 const clone=o=>JSON.parse(JSON.stringify(o));

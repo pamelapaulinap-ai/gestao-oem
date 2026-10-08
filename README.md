@@ -16,3 +16,11 @@ Painel de gestão de O&M: notificações de rede no mapa (troca de poste, irregu
 1. Banco de dados e login com a conta Microsoft da empresa.
 2. Dados reais (rota de cabos, notificações, regularização) atrás do login.
 3. Financeiro e combustível.
+
+## Banco de dados e login (Supabase)
+
+1. Crie o projeto no Supabase e rode o conteúdo de `supabase.sql` no SQL Editor.
+2. Em `config.js`, preencha `url` (Project URL) e `key` (chave **anon/publishable**). Nunca a chave service_role/secret.
+3. Cadastre os usuários em Authentication > Users e desligue o cadastro aberto ("Allow new users to sign up").
+
+Enquanto `config.js` estiver vazio, o painel funciona no modo local (dados só no navegador).
