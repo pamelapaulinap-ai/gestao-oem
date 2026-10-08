@@ -2215,7 +2215,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={sub:'conta',mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={sub:'geral',ano:null,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2260,14 +2260,75 @@ const statCard=(l,b,e,cls)=>`<div class="card fstat ${cls||''}"><div class="fl">
 
 function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
   const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{})]);
-  box.innerHTML=`<div class="row"><label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>
-    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
-    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end">Baixar Excel do mês</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
-  $('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
+  const ger=F.sub==='geral';
+  box.innerHTML=`<div class="row">${ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
+    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
+    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end">${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
+  if($('#fin-mes'))$('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
+  if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;renderFin();};
   box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{F.sub=b.dataset.sub;renderFin();});
-  $('#fin-xls').onclick=()=>finExcelMes(m);
-  ({conta:finConta,lpu:finLpu,ctr:finCtr})[F.sub]($('#fin-sub'),m);}
+  $('#fin-xls').onclick=()=>ger?finExcelGeral():finExcelMes(m);
+  ({geral:finGeral,conta:finConta,lpu:finLpu,ctr:finCtr})[F.sub]($('#fin-sub'),m);}
 
+
+/* ---------- visão geral (todos os meses) ---------- */
+function finMesesDados(){const b=F.cfg.budget||{};const set=new Set();Object.values(F.lpu).forEach(r=>r&&r.mes&&set.add(r.mes));
+  Object.keys(b.geral||{}).forEach(m=>{const v=b.geral[m];if(v!=null&&v!=='')set.add(m);});
+  ['contas','base'].forEach(k=>Object.values(b[k]||{}).forEach(o=>Object.entries(o||{}).forEach(([m,v])=>{if(v!=null&&v!==''&&Number(v)!==0)set.add(m);})));
+  contratos().forEach(c=>Object.keys(c.monthly||{}).forEach(m=>set.add(m)));
+  return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort();}
+function finAnos(){const a=[...new Set(finMesesDados().map(m=>m.slice(0,4)))];const y=String(new Date().getFullYear());if(!a.includes(y))a.push(y);return a.sort().reverse();}
+function finAno(){const a=finAnos();if(!F.ano||!a.includes(F.ano))F.ano=a.find(y=>finMesesDados().some(m=>m.startsWith(y)))||a[0];return F.ano;}
+function finGeralDados(ano){const ms=finMesesDados().filter(m=>m.startsWith(ano));const bud=F.cfg.budget.contas||{};
+  const rows=CONTAS.map(a=>({a,v:ms.map(m=>({e:execConta(a.c,m).total,b:Number((bud[a.c]||{})[m])||0}))}));
+  const tot=ms.map(m=>finTotais(m));const S=k=>tot.reduce((s,t)=>s+t[k].e,0),B=k=>tot.reduce((s,t)=>s+t[k].b,0);
+  const SB=k=>tot.reduce((s,t)=>s+(t[k].b>0?t[k].e:0),0),NB=k=>tot.filter(t=>t[k].b>0).length;
+  const mk=k=>({e:S(k),b:B(k),eb:SB(k),nb:NB(k)});
+  return {ms,rows,tot,acc:{all:mk('all'),capex:mk('capex'),opex:mk('opex')}};}
+function accCard(l,x,n,cls){const sub=!x.nb?'nenhum mês com budget lançado':x.nb===n?`todos os ${n} meses com budget`:(x.nb===1?'saldo comparado só no mês que tem budget lançado':`saldo comparado só nos ${x.nb} meses com budget lançado`);
+  return `<div class="card fstat ${cls||''}"><div class="fl">${l}</div><div class="fv">${brl(x.e)}${x.b>0?` <small>/ budget ${brl(x.b)}</small>`:''}</div>${bbar(x.b,x.eb)}<div class="bbc">${sub}</div></div>`;}
+function finGeralChart(sel,G){const el=$(sel);if(!el)return;if(!G.ms.length){el.innerHTML='<p class="hint">Sem lançamentos neste ano.</p>';return;}
+  const W=920,H=280,pl=56,pr=10,pt=12,pb=30;const mx=Math.max(1,...G.tot.map(t=>Math.max(t.all.e,t.all.b)));
+  const raw=mx/5,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(f=>f*mag).find(v=>v>=raw);const top=Math.ceil(mx/st)*st;
+  const bw=(W-pl-pr)/Math.max(G.ms.length,6);const y=v=>pt+(H-pt-pb)*(1-v/top);let s='';
+  const kf=v=>v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':Math.round(v/1000)+'k';
+  for(let g=0;g<=top+1e-6;g+=st)s+=`<line class="gr" x1="${pl}" x2="${W-pr}" y1="${y(g)}" y2="${y(g)}"/><text x="${pl-6}" y="${y(g)+4}" text-anchor="end">${kf(g)}</text>`;
+  G.ms.forEach((m,i)=>{const t=G.tot[i];const x=pl+i*bw+bw*.18,w=bw*.64;let acc=0;
+    [['opex','--s1'],['capex','--s4']].forEach(([k,v])=>{const val=t[k].e;if(!val)return;const y1=y(acc+val);s+=`<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,y(acc)-y1-1).toFixed(1)}" rx="2" fill="var(${v})"/>`;acc+=val;});
+    if(t.all.b>0)s+=`<line x1="${(x-4).toFixed(1)}" x2="${(x+w+4).toFixed(1)}" y1="${y(t.all.b)}" y2="${y(t.all.b)}" stroke="var(--fg)" stroke-width="2" stroke-dasharray="4 3"/>`;
+    if(t.all.b>0&&t.all.e>t.all.b)s+=`<text x="${(x+w/2).toFixed(1)}" y="${(y(t.all.e)-6).toFixed(1)}" text-anchor="middle" fill="var(--critical)" font-weight="700">▲</text>`;
+    s+=`<text x="${(x+w/2).toFixed(1)}" y="${H-10}" text-anchor="middle">${mesCurto(m)}</text>`;
+    s+=`<rect class="hit" data-i="${i}" x="${(pl+i*bw).toFixed(1)}" y="${pt}" width="${bw.toFixed(1)}" height="${H-pt-pb}" fill="transparent" style="cursor:pointer"/>`;});
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Executado por mês, CAPEX e OPEX, com o budget">${s}<line class="ax" x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}"/></svg>`;
+  let tip=$('#fin-tip');if(!tip){tip=document.createElement('div');tip.id='fin-tip';tip.className='tip';tip.hidden=true;document.body.appendChild(tip);}
+  el.querySelectorAll('.hit').forEach(r=>{const i=+r.dataset.i,m=G.ms[i],t=G.tot[i];
+    r.onmousemove=e=>{tip.hidden=false;tip.innerHTML=`<b>${mesLabel(m)}</b><div>Executado ${brl(t.all.e)}</div><div>Budget ${t.all.b>0?brl(t.all.b):'—'}</div>${t.all.b>0?`<div style="color:${t.all.e>t.all.b?'var(--critical)':'inherit'}">${t.all.e>t.all.b?'Acima em '+brl(t.all.e-t.all.b):'Saldo '+brl(t.all.b-t.all.e)}</div>`:''}<div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s4);margin-right:6px"></i>CAPEX ${brl(t.capex.e)}</div><div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s1);margin-right:6px"></i>OPEX ${brl(t.opex.e)}</div><div class="hint">Clique para abrir o mês</div>`;tip.style.left=Math.min(innerWidth-230,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';};
+    r.onmouseleave=()=>tip.hidden=true;r.onclick=()=>{tip.hidden=true;F.mes=m;F.sub='conta';F.open.clear();curView==='fin'?renderFin():showView('fin');};});}
+const geralLegend=`<div class="lg"><span><i style="background:var(--s4)"></i>CAPEX</span><span><i style="background:var(--s1)"></i>OPEX</span><span><i style="background:transparent;border-top:2px dashed var(--fg);height:0;border-radius:0"></i>budget do mês</span><span style="color:var(--critical)">▲ acima do budget</span></div>`;
+function finGeralTabela(G){if(!G.ms.length)return '';const c=v=>v?brl0(v):'—';
+  const cell=(x)=>`<td class="r mono"${x.b>0&&x.e>x.b?' style="color:var(--critical);font-weight:600" title="Acima do budget da conta ('+brl(x.b)+')"':x.b>0?' title="Budget da conta: '+brl(x.b)+'"':''}>${c(x.e)}</td>`;
+  const sum=a=>a.reduce((s,v)=>s+v,0);
+  const linhas=G.rows.filter(r=>r.v.some(x=>x.e||x.b)).map(r=>`<tr><td><span class="gt ${r.a.g}">${r.a.g.toUpperCase()}</span> ${r.a.c} · ${esc(r.a.n)}</td>${r.v.map(cell).join('')}<td class="r mono"><b>${c(sum(r.v.map(x=>x.e)))}</b></td></tr>`).join('');
+  const tr=(l,f,st)=>`<tr${st?` style="${st}"`:''}><td><b>${l}</b></td>${G.tot.map(t=>`<td class="r mono">${f(t)}</td>`).join('')}<td class="r mono"><b>${f(null)}</b></td></tr>`;
+  const A=G.acc;const saldo=t=>{const e=t?t.all.e:A.all.eb,b=t?t.all.b:A.all.b;if(!(b>0))return '—';const d=b-e;return `<span style="color:${d<0?'var(--critical)':'var(--good)'}">${d<0?'−':''}${brl0(Math.abs(d))}</span>`;};
+  return `<div class="card" style="padding:0;overflow-x:auto"><table class="mini" style="min-width:${300+G.ms.length*96}px;width:100%"><thead><tr><th>Conta contábil</th>${G.ms.map(m=>`<th class="r">${mesCurto(m)}</th>`).join('')}<th class="r">Total</th></tr></thead>
+   <tbody>${linhas||`<tr><td colspan="${G.ms.length+2}" class="hint">Sem executado lançado.</td></tr>`}</tbody>
+   <tfoot style="border-top:2px solid var(--line-2)">${tr('CAPEX',t=>c(t?t.capex.e:A.capex.e))}${tr('OPEX',t=>c(t?t.opex.e:A.opex.e))}${tr('Executado total',t=>c(t?t.all.e:A.all.e),'background:var(--bg)')}${tr('Budget',t=>c(t?t.all.b:A.all.b))}${tr('Saldo',saldo)}${tr('% do budget usado',t=>{const e=t?t.all.e:A.all.eb,b=t?t.all.b:A.all.b;return b>0?Math.round(e/b*100)+'%':'—';})}</tfoot></table></div>`;}
+function finGeralTop(G,ano){const A=G.acc;const n=G.ms.length;const acima=G.tot.filter(t=>t.all.b>0&&t.all.e>t.all.b).length;
+  return `<div class="fstats">${accCard('Executado acumulado '+ano+' · '+n+' '+(n===1?'mês':'meses'),A.all,n,'')}${accCard('CAPEX acumulado',A.capex,n,'capex')}${accCard('OPEX acumulado',A.opex,n,'opex')}</div>
+   <div class="card"><h3>Executado × budget por mês · ${ano}</h3>${geralLegend}<div class="chart" id="fg-chart" style="overflow-x:auto"></div><p class="hint" style="margin:6px 0 0">${n?`Média mensal executada: ${brl(A.all.e/n)}.`:''}${acima?` ${acima} ${acima===1?'mês ficou':'meses ficaram'} acima do budget.`:''} Clique numa barra para abrir o mês.</p></div>`;}
+const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
+function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
+  box.innerHTML=`${finGeralTop(G,ano)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}`;
+  finGeralChart('#fg-chart',G);}
+function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
+  const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
+  const A=[H,...G.rows.map(r=>[r.a.c+' · '+r.a.n,r.a.g.toUpperCase(),...r.v.map(x=>x.e),sum(r.v.map(x=>x.e))]),[],
+    ['CAPEX','',...G.tot.map(t=>t.capex.e),G.acc.capex.e],['OPEX','',...G.tot.map(t=>t.opex.e),G.acc.opex.e],['Executado total','',...G.tot.map(t=>t.all.e),G.acc.all.e],['Budget','',...G.tot.map(t=>t.all.b),G.acc.all.b],['Saldo (meses com budget)','',...G.tot.map(t=>t.all.b>0?t.all.b-t.all.e:null),G.acc.all.b>0?G.acc.all.b-G.acc.all.eb:null]];
+  const money=Array.from({length:n+1},(_,i)=>i+2);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[44,10,...G.ms.map(()=>14),16],money),'Executado por mês');
+  const bud=F.cfg.budget.contas||{};const B=[H,...CONTAS.map(a=>{const v=G.ms.map(m=>Number((bud[a.c]||{})[m])||0);return [a.c+' · '+a.n,a.g.toUpperCase(),...v,sum(v)];})];
+  XLSX.utils.book_append_sheet(wb,xlsSheet(B,[44,10,...G.ms.map(()=>14),16],money),'Budget por mês');
+  xlsSave(wb,`financeiro_om_geral_${ano}.xlsx`);}
 /* ---------- aba: conta contábil ---------- */
 function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=canWrite===false?'disabled':'';
   const list=CONTAS.filter(a=>F.grp==='all'||a.g===F.grp);
@@ -2436,12 +2497,14 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,14,14,16,14,14,11,12],[3,4,5,6]),'Contratos fora da LPU');
   const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');}
   xlsSave(wb,`financeiro_om_${m}.xlsx`);}
-function dashFin(box){const m=F.mes;const t=finTotais(m);const rels=lpuMes(m);
-  box.innerHTML=`<div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
+function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
+  box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${finGeralTop(G,ano)}
+   <div class="row" style="margin-top:6px"><h2 style="margin:0;font-size:17px">Mês de ${mesLabel(m)}</h2></div><div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
    <div class="grid2"><div class="card"><h3>Executado por conta contábil · ${mesLabel(m)}</h3><div id="df-1"></div></div><div class="card"><h3>Contratos fora da LPU · ${mesLabel(m)}</h3><div id="df-2"></div><p class="hint">${rels.length} relatório(s) de LPU lido(s) no mês.</p></div></div>
    <div><button class="btn primary" id="df-open">Abrir Financeiro</button></div>`;
   fbars('#df-1',CONTAS.map(a=>[a.c+' · '+a.n,execConta(a.c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s1',brl0);
-  fbars('#df-2',contratos().map(c=>[c.nome,ctrCalc(c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s4',brl0);$('#df-open').onclick=()=>showView('fin');}
+  fbars('#df-2',contratos().map(c=>[c.nome,ctrCalc(c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s4',brl0);$('#df-open').onclick=()=>{F.sub='geral';showView('fin');};
+  finGeralChart('#fg-chart',G);if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;renderDash();};}
 
 /* ================= COMBUSTÍVEL ================= */
 const combMeses=()=>Object.keys(F.comb).sort();
