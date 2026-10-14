@@ -733,7 +733,11 @@ textarea{resize:vertical;width:100%}
 .btn.small{padding:3px 9px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .view{min-height:0;overflow:auto}
-.view[hidden],#leitor-box[hidden]{display:none!important}
+.rq-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px}
+.rq-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}.rq-bar i{display:block;height:100%}
+.rq-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-2)}.rq-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rq-proj{font-size:13px;line-height:1.6}
+.view[hidden],#leitor-box[hidden],#ruas-box[hidden]{display:none!important}
 .banner{padding:8px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:13.5px;color:var(--fg-2)}
 
 
@@ -1034,6 +1038,12 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
           <p class="hint" id="rd-msg"></p>
         </div>
         <div class="card" id="rd-result" hidden></div>
+        <div class="card">
+          <div class="row" style="margin-bottom:6px"><div class="grow"><h3 style="margin:0">Consultar rua</h3><p class="hint" style="margin:4px 0 0">Digite o nome da rua para saber se temos cabo, quantos metros e em que fase está a regularização.</p></div><button class="btn small" id="rq-lista" type="button">Lista completa de ruas</button></div>
+          <div class="row"><label class="fld grow" style="min-width:220px"><span>Rua</span><input type="search" id="rq-q" placeholder="Ex.: Av. Brasil" autocomplete="off"></label><label class="fld" style="min-width:180px"><span>Cidade</span><select id="rq-cid"><option value="">Todas as cidades</option></select></label></div>
+          <div id="rq-out" style="display:grid;gap:10px;margin-top:10px"></div>
+        </div>
+        <div id="ruas-box" hidden style="display:grid;gap:14px"></div>
         </div>
         <div id="imp-notif"></div>
         <div class="card"><div class="tablewrap" id="tbl-notif"></div></div>
@@ -1578,7 +1588,7 @@ function renderRotaPage(){if(!S.rota)return;const m=S.rota.meta;const c=S.cfgRot
   const h=Object.entries(S.hist).sort((a,b)=>b[0].localeCompare(a[0]));
   $('#rota-hist').innerHTML=h.length?`<table><thead><tr><th>Mês</th><th>Arquivo</th><th class="r">Trechos</th><th class="r">Cabo (km)</th><th class="r">Subterrânea (km)</th><th class="r">Novos trechos</th><th class="r">Novos (km)</th></tr></thead><tbody>${h.map(([k,v])=>`<tr><td>${mesLabel(k)}</td><td>${esc(v.arquivo)}</td><td class="r num">${fmtN(v.trechos)}</td><td class="r num">${fmtKm(v.metros)}</td><td class="r num">${v.metrosSub?fmtKm(v.metrosSub):'—'}</td><td class="r num">${v.novosTrechos==null?'—':fmtN(v.novosTrechos)}</td><td class="r num">${v.novosMetros==null?'—':fmtKm(v.novosMetros)}</td></tr>`).join('')}</tbody></table>`:'<p class="hint">Nenhuma leitura registrada ainda.</p>';
   renderRuas();}
-function renderRuas(){const box=$('#tbl-ruas');if(!S.ruas){box.innerHTML='';$('#ruas-info').textContent='A lista de ruas está sendo gerada a partir do mapa do OpenStreetMap.';return;}
+function renderRuas(){const box=$('#tbl-ruas');if(!S.ruas){box.innerHTML='';$('#ruas-info').textContent='A lista de ruas ainda não foi gerada: em Notificações, clique em "Ruas com cabo" e depois em "Gerar lista de ruas".';return;}
   const q=norm($('#rua-busca').value);const rows=S.ruas.ruas.filter(r=>!q||norm(r[0]).includes(q)||norm(r[1]).includes(q));
   $('#ruas-info').textContent=`${fmtN(S.ruas.ruas.length)} ruas · ${fmtKm(S.ruas.total)} de cabo identificados por rua · ${S.ruas.base}`;
   box.innerHTML=`<table><thead><tr><th>Rua</th><th>Cidade</th><th class="r">Metros de cabo</th><th>Coordenada</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr class="click" data-ll="${r[3]},${r[4]}"><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="r num">${fmtN(r[2])}</td><td class="mono">${r[3].toFixed(6)}, ${r[4].toFixed(6)}</td></tr>`).join('')}</tbody></table>${rows.length>800?`<p class="hint">Mostrando 800 de ${fmtN(rows.length)}. Refine a busca ou baixe o CSV.</p>`:''}`;
@@ -2704,13 +2714,143 @@ $('#btn-imp-reg').onclick=()=>{if(noEdit())return;openImporter('reg');$('#imp-re
 $('#btn-xls-reg').onclick=regExcel;
 notifImporter();regImporter();
 
+/* ================= ruas com cabo (gerado no navegador a partir do OpenStreetMap) ================= */
+const RZ={open:false,q:'',cid:'',lim:300,busy:false,prog:'',cfg:null};
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const HWY='^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road|pedestrian|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|track)$';
+const cidLimpa=c=>String(c||'').replace(/\s*-\s*[A-Z]{2}$/,'').trim();
+const fmtM=m=>m>=1000?(m/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})+' km':fmtN(Math.round(m))+' m';
+async function overpass(q,tent){let err;for(let t=0;t<(tent||4);t++){const url=OVERPASS[t%OVERPASS.length];
+  try{const r=await fetch(url,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+    if(r.ok)return await r.json();err=new Error('HTTP '+r.status);}catch(e){err=e;}
+  await new Promise(res=>setTimeout(res,2500*(t+1)));}throw err;}
+function ruasAmostras(){/* pontos a cada ~8 m ao longo dos cabos, agrupados em áreas de 0,1° */
+  const cells=new Map();const R=6371000,rad=Math.PI/180;
+  rotaGeo.forEach((pts,si)=>{for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];
+    const dy=(b[0]-a[0])*rad*R,dx=(b[1]-a[1])*rad*R*Math.cos(a[0]*rad);const L=Math.hypot(dx,dy);if(!L)continue;const n=Math.max(1,Math.ceil(L/8));
+    for(let k=0;k<n;k++){const t=(k+.5)/n;const y=a[0]+(b[0]-a[0])*t,x=a[1]+(b[1]-a[1])*t;const key=Math.floor(y/.1)+'_'+Math.floor(x/.1);
+      let c=cells.get(key);if(!c){c=[];cells.set(key,c);}c.push(y,x,L/n,si);}}});
+  return cells;}
+function ruasCasa(data,amostras,acc){/* liga cada ponto de cabo à rua com nome mais próxima (até 35 m) */
+  const gs=.0006,G=new Map(),segs=[];
+  for(const w of (data.elements||[])){const nm=w.tags&&w.tags.name;const g=w.geometry;if(!nm||!g||g.length<2)continue;
+    for(let i=0;i<g.length-1;i++){const a=g[i],b=g[i+1];if(!a||!b)continue;const sid=segs.length;segs.push([a.lat,a.lon,b.lat,b.lon,nm]);
+      for(let gx=Math.floor(Math.min(a.lon,b.lon)/gs)-1;gx<=Math.floor(Math.max(a.lon,b.lon)/gs)+1;gx++)for(let gy=Math.floor(Math.min(a.lat,b.lat)/gs)-1;gy<=Math.floor(Math.max(a.lat,b.lat)/gs)+1;gy++){const k=gx+'|'+gy;let l=G.get(k);if(!l){l=[];G.set(k,l);}l.push(sid);}}}
+  for(let p=0;p<amostras.length;p+=4){const y=amostras[p],x=amostras[p+1],w=amostras[p+2],si=amostras[p+3];const kx=Math.cos(y*Math.PI/180);
+    const l=G.get(Math.floor(x/gs)+'|'+Math.floor(y/gs));if(!l)continue;let best=1e9,bn=null;
+    for(const sid of l){const s=segs[sid];const ax=(s[1]-x)*kx,ay=s[0]-y,bx=(s[3]-x)*kx,by=s[2]-y,dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy;
+      const t=L?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L)):0;const d=Math.hypot(ax+t*dx,ay+t*dy)*111320;if(d<best){best=d;bn=s[4];}}
+    if(bn==null||best>35)continue;const cid=cidLimpa(S.rota.s[si][1]);const k=bn+'\u0001'+cid;
+    let e=acc.agg.get(k);if(!e){e={m:0,lat:y,lng:x,p:[],q:1e9};acc.agg.set(k,e);}e.m+=w;acc.tot+=w;
+    e.q+=w;if(e.q>=30){e.q=0;e.p.push(Math.round(y*1e5),Math.round(x*1e5));}
+    let sm=acc.seg.get(si);if(!sm){sm=new Map();acc.seg.set(si,sm);}sm.set(bn,(sm.get(bn)||0)+w);}}
+async function gerarRuas(){if(RZ.busy)return;if(noEditR())return;if(!S.rota||!S.rota.s.length){toast('Importe o KMZ da rota primeiro');return;}
+  RZ.busy=true;RZ.prog='Separando os trechos de cabo…';renderRuasBox();
+  try{const cells=[...ruasAmostras().entries()];const acc={agg:new Map(),seg:new Map(),tot:0};let ok=0,falha=[];
+    const fila=cells.slice();const worker=async()=>{while(fila.length){const [key,am]=fila.shift();const [cy,cx]=key.split('_').map(Number);
+      const s=cy*.1-.0005,w=cx*.1-.0005,n=(cy+1)*.1+.0005,e=(cx+1)*.1+.0005;
+      try{const d=await overpass(`[out:json][timeout:120];way["highway"~"${HWY}"]["name"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out tags geom;`);ruasCasa(d,am,acc);ok++;}
+      catch(err){console.error(err);falha.push(key);}
+      RZ.prog=`Buscando ruas no OpenStreetMap: ${ok+falha.length} de ${cells.length} áreas${falha.length?` (${falha.length} com falha)`:''}…`;renderRuasBox();}};
+    await Promise.all([worker(),worker()]);
+    if(!ok)throw new Error('O OpenStreetMap não respondeu. Tente de novo em alguns minutos.');
+    const ruas=[...acc.agg.entries()].filter(([,v])=>v.m>=5).map(([k,v])=>{const [n,c]=k.split('\u0001');return [n,c,Math.round(v.m),+v.lat.toFixed(6),+v.lng.toFixed(6),v.p];}).sort((a,b)=>b[2]-a[2]);
+    const seg={};acc.seg.forEach((m,si)=>{seg[segKey(S.rota.s[si])]=[...m.entries()].filter(e=>e[1]>=10).sort((a,b)=>b[1]-a[1]).slice(0,4).map(e=>e[0]);});
+    const hojeBR=new Date().toLocaleDateString('pt-BR');
+    const out={ruas,seg,total:Math.round(acc.tot),base:`ruas do OpenStreetMap · gerada em ${hojeBR} · ${S.rota.meta.arquivo||'KMZ'}`,cabo:Math.round(S.rota.meta.metros||0),falhas:falha.length};
+    S.ruas=out;RUA_IDX=null;RZ.prog='Salvando a lista…';renderRuasBox();
+    if(db&&assets){const up=await assets.upload(new Blob([JSON.stringify(out)],{type:'application/json'}),{type:'application/json'});
+      await db.doc('config/ruas').set({assetId:up.id,geradoEm:new Date().toISOString(),rotaAsset:(S.cfgRota&&S.cfgRota.assetId)||'',arquivo:S.rota.meta.arquivo||'',ruas:ruas.length,total:out.total,falhas:falha.length});}
+    RZ.prog='';toast(`Lista pronta: ${fmtN(ruas.length)} ruas`+(falha.length?` · ${falha.length} área(s) sem resposta, gere de novo depois`:''));}
+  catch(e){console.error(e);RZ.prog='';toast('Não foi possível gerar a lista: '+(e.message||e));}
+  RZ.busy=false;renderRuasBox();renderView();if(consultaInit.fill)consultaInit.fill();renderConsulta();}
+const noEditR=()=>{if(canWrite===false){toast('Você não tem permissão para editar este painel');return true;}return false;};
+let ruasLoaded='';
+async function loadRuas(cfg){const src=cfg&&cfg.assetId?'/_blob/'+cfg.assetId:'ruas.json';if(ruasLoaded===src)return;ruasLoaded=src;
+  try{const r=await fetch(src);if(!r.ok)throw 0;S.ruas=await r.json();RUA_IDX=null;renderView();renderRuasBox();if(consultaInit.fill)consultaInit.fill();renderConsulta();}catch(e){if(src==='ruas.json'){S.ruas=null;renderRuasBox();}}}
+function ruasDesatualizada(){const c=RZ.cfg;return !!(c&&S.cfgRota&&S.cfgRota.assetId&&c.rotaAsset!==S.cfgRota.assetId);}
+function ruasFiltradas(){const q=norm(RZ.q);return (S.ruas?S.ruas.ruas:[]).filter(r=>(!RZ.cid||r[1]===RZ.cid)&&(!q||norm(r[0]).includes(q)));}
+function renderRuasBox(){const bx=$('#ruas-box');if(!bx||bx.hidden)return;const ro=canWrite===false?'disabled':'';const has=!!(S.ruas&&S.ruas.ruas&&S.ruas.ruas.length);
+  const a=document.activeElement;const foc=a&&bx.contains(a)&&a.id;const pos=foc&&a.selectionStart;
+  const cids=has?[...new Set(S.ruas.ruas.map(r=>r[1]).filter(Boolean))].sort((x,y)=>x.localeCompare(y)):[];
+  const rows=ruasFiltradas();const tot=rows.reduce((s,r)=>s+r[2],0);
+  const aviso=RZ.busy?`<p class="hint" style="margin:8px 0 0"><b>${esc(RZ.prog)}</b> Pode levar alguns minutos; deixe esta aba aberta.</p>`:
+    !has?`<p class="hint" style="margin:8px 0 0">A lista ainda não foi gerada. O painel busca as ruas no OpenStreetMap, cruza com os cabos do KMZ e soma os metros por rua. Leva alguns minutos e só precisa ser refeito quando chegar um KMZ novo.</p>`:
+    ruasDesatualizada()?`<p class="hint" style="margin:8px 0 0;color:var(--serious)">Chegou um KMZ novo depois desta lista. Clique em "Atualizar lista" para recalcular.</p>`:'';
+  bx.innerHTML=`<div class="card" style="border-color:var(--focus)">
+    <div class="row" style="margin-bottom:8px"><div class="grow"><h3 style="margin:0">Ruas onde temos cabo</h3><p class="hint" style="margin:4px 0 0">${has?`${fmtN(S.ruas.ruas.length)} ruas · ${fmtKm(S.ruas.total)} de cabo identificados por rua${S.ruas.cabo?` (de ${fmtKm(S.ruas.cabo)} no KMZ; o resto passa fora de rua com nome, como terrenos e rodovias sem nome)`:''} · ${esc(S.ruas.base||'')}`:'Metros de cabo lançados em cada rua, a partir do KMZ da rota.'}</p></div>
+      <button class="btn small" id="rz-close" type="button">✕ Fechar</button></div>
+    ${has?`<div class="row"><label class="fld grow" style="min-width:200px"><span>Buscar rua</span><input type="search" id="rz-q" value="${esc(RZ.q)}" placeholder="Ex.: Av. Brasil"></label>
+      <label class="fld" style="min-width:180px"><span>Cidade</span><select id="rz-cid"><option value="">Todas</option>${cids.map(c=>`<option ${c===RZ.cid?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+      <button class="btn" id="rz-xls" style="align-self:end">Excel</button>`:'<div class="row"><div class="grow"></div>'}
+      <button class="btn ${has?'':'primary'}" id="rz-gen" style="align-self:end" ${RZ.busy||ro?'disabled':''}>${has?'Atualizar lista':'Gerar lista de ruas'}</button></div>${aviso}</div>
+    ${has?`<div class="card"><div class="hint" style="margin-bottom:6px">${fmtN(rows.length)} rua(s) · ${fmtM(tot)} de cabo${RZ.q||RZ.cid?' no filtro':''}. Clique numa rua para ver no mapa.</div><div class="tablewrap"><table><thead><tr><th>Rua</th><th>Cidade</th><th class="r">Cabo lançado</th></tr></thead><tbody>
+      ${rows.slice(0,RZ.lim).map(r=>`<tr class="click" data-ll="${r[3]},${r[4]}"><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="r num">${fmtM(r[2])}</td></tr>`).join('')||'<tr><td colspan="3" class="hint">Nenhuma rua encontrada.</td></tr>'}</tbody></table></div>
+      ${rows.length>RZ.lim?`<div style="margin-top:8px"><button class="btn small" id="rz-mais">Mostrar mais (${fmtN(rows.length-RZ.lim)} restantes)</button></div>`:''}</div>`:''}`;
+  const g=id=>bx.querySelector('#'+id);
+  g('rz-close').onclick=()=>ruasBox(false);if(g('rz-gen'))g('rz-gen').onclick=gerarRuas;
+  if(g('rz-q'))g('rz-q').oninput=e=>{RZ.q=e.target.value;RZ.lim=300;renderRuasBox();};
+  if(g('rz-cid'))g('rz-cid').onchange=e=>{RZ.cid=e.target.value;RZ.lim=300;renderRuasBox();};
+  if(g('rz-mais'))g('rz-mais').onclick=()=>{RZ.lim+=500;renderRuasBox();};
+  if(g('rz-xls'))g('rz-xls').onclick=ruasExcel;
+  bx.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>{const [la,lo]=tr.dataset.ll.split(',').map(Number);showView('mapa');map.flyTo([la,lo],17,{duration:.6});});
+  if(foc){const el=g(foc);if(el){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos);}catch(e){}}}}
+function ruasBox(open){const bx=$('#ruas-box'),bt=$('#btn-ruas');if(!bx)return;bx.hidden=!open;RZ.open=open;if(bt)bt.setAttribute('aria-expanded',String(open));if(open){renderRuasBox();setTimeout(()=>bx.scrollIntoView({block:'start',behavior:'smooth'}),50);}}
+function ruasExcel(){const rows=ruasFiltradas();if(!rows.length){toast('Nenhuma rua no filtro');return;}
+  const A=[['Rua','Cidade','Metros de cabo lançados','Descrição','Latitude','Longitude'],...rows.map(r=>[r[0],r[1],r[2],`${r[0]} - ${fmtM(r[2])} de cabos lançados`,r[3],r[4]])];
+  if(window.XLSX){const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(A);ws['!cols']=[{wch:44},{wch:22},{wch:14},{wch:60},{wch:11},{wch:11}];ws['!autofilter']={ref:`A1:F${A.length}`};XLSX.utils.book_append_sheet(wb,ws,'Ruas com cabo');
+    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});salvar('ruas_com_cabo.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})).then(r=>avisa(r,'Excel gerado','Não foi possível gerar o Excel'));}
+  else offer('ruas_com_cabo.csv',csvOf(A));}
+
+/* ---------- consulta de rua: tem cabo? está regularizado? ---------- */
+const RQ={q:'',cid:''};
+function regGeoms(){const out=[];const ring=c=>Array.isArray(c[0]&&c[0][0])?c[0]:c;
+  for(const [rid,r] of Object.entries(S.rr||{})){const ll=rrCoords(r);if(ll.length<2)continue;const pid=rrProj(r);const p=pid?S.reg[pid]:null;
+    out.push({t:r.tipo==='l'?'l':'p',ll,st:r.status,nome:r.nome||'Rota protocolada',proj:p?(p.nome||''):'',prot:(r.protocolos||[]).join(', '),go:()=>{showView('mapa');$('#ly-reg').checked=true;G.reg.addTo(map);map.fitBounds(L.latLngBounds(ll).pad(.4),{maxZoom:18});setTimeout(()=>rrPopup(rid,ll[Math.floor(ll.length/2)]),400);}});}
+  for(const [id,r] of Object.entries(S.reg||{})){const g=S.regGeo[id];if(!g||!g.feats)continue;const pst=projStatus(r);
+    g.feats.forEach((f,i)=>{const ll=ring(f.c||[]);if(ll.length<2)return;const fs=(r.feats||{})['f'+i]||{};out.push({t:f.t==='p'?'p':'l',ll,st:fs.status||pst,nome:r.nome||'Projeto',proj:r.nome||'',prot:r.nota||'',go:()=>{showView('mapa');$('#ly-reg').checked=true;G.reg.addTo(map);map.fitBounds(L.latLngBounds(ll).pad(.4),{maxZoom:18});}});});}
+  out.forEach(g=>{let a=90,b=180,c=-90,d=-180;g.ll.forEach(p=>{a=Math.min(a,p[0]);b=Math.min(b,p[1]);c=Math.max(c,p[0]);d=Math.max(d,p[1]);});g.bb=[a-.0003,b-.0003,c+.0003,d+.0003];});
+  return out;}
+function distSeg(y,x,a,b){const kx=Math.cos(y*Math.PI/180);const ax=(a[1]-x)*kx,ay=a[0]-y,bx=(b[1]-x)*kx,by=b[0]-y,dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy;const t=L?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L)):0;return Math.hypot(ax+t*dx,ay+t*dy)*111320;}
+function noPoligono(y,x,ll){let ins=false;for(let i=0,j=ll.length-1;i<ll.length;j=i++){const yi=ll[i][0],xi=ll[i][1],yj=ll[j][0],xj=ll[j][1];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi+1e-15)+xi)ins=!ins;}return ins;}
+function regDaRua(r,geoms){const P=r[5]||[];const n=P.length/2;if(!n)return null;const w=r[2]/n;const por={};const quem=new Map();let sem=0;
+  for(let i=0;i<P.length;i+=2){const y=P[i]/1e5,x=P[i+1]/1e5;let hit=null;
+    for(const g of geoms){if(y<g.bb[0]||y>g.bb[2]||x<g.bb[1]||x>g.bb[3])continue;
+      if(g.t==='p'?noPoligono(y,x,g.ll):(()=>{for(let k=0;k<g.ll.length-1;k++)if(distSeg(y,x,g.ll[k],g.ll[k+1])<=25)return true;return false;})()){hit=g;if(normReg(g.st)==='VISTORIADO 100%')break;}}
+    if(!hit){sem+=w;continue;}const st=rrSt(hit.st);por[st.label]=(por[st.label]||{m:0,v:st.v});por[st.label].m+=w;
+    const q=quem.get(hit)||{g:hit,m:0};q.m+=w;quem.set(hit,q);}
+  return {por,sem,quem:[...quem.values()].sort((a,b)=>b.m-a.m)};}
+function ruasBusca(q,cid){const nq=norm(q);const rk=ruaKey(q);if(nq.length<3||!S.ruas)return [];
+  const pool=S.ruas.ruas.filter(r=>!cid||r[1]===cid);const sc=r=>{const k=ruaKey(r[0]);const n=norm(r[0]);const dig=/\d/.test(nq);return n.includes(nq)?3:(!dig&&k===rk)?2:(!dig&&rk.length>=4&&(k.includes(rk)||rk.includes(k)&&k.length>=4))?1:0;};
+  return pool.map(r=>[sc(r),r]).filter(x=>x[0]).sort((a,b)=>b[0]-a[0]||b[1][2]-a[1][2]).slice(0,8).map(x=>x[1]);}
+function renderConsulta(){const bx=$('#rq-out');if(!bx)return;const has=!!(S.ruas&&S.ruas.ruas&&S.ruas.ruas.length);
+  if(!has){bx.innerHTML=`<p class="hint" style="margin:8px 0 0">A lista de ruas ainda não foi gerada. Abra a <a href="#" data-lista>lista completa de ruas</a> e clique em "Gerar lista de ruas".</p>`;bx.querySelector('[data-lista]').onclick=e=>{e.preventDefault();ruasBox(true);};return;}
+  if(RQ.q.trim().length<3){bx.innerHTML='';return;}
+  const res=ruasBusca(RQ.q,RQ.cid);
+  if(!res.length){bx.innerHTML=`<div class="rq-card"><b class="rede-nao">Sem cabo nosso</b> encontrado em "${esc(RQ.q)}"${RQ.cid?' em '+esc(RQ.cid):''}. <span class="hint">Confira a grafia, tente sem "Rua/Av." ou procure pela coordenada no mapa.</span></div>`;return;}
+  const geoms=regGeoms();
+  bx.innerHTML=res.map((r,i)=>{const g=regDaRua(r,geoms);let reg='';
+    if(!g)reg='<span class="hint">Lista antiga sem o traçado por rua: clique em "Atualizar lista" para ver a regularização.</span>';
+    else{const tot=r[2];const parts=Object.entries(g.por).sort((a,b)=>b[1].m-a[1].m);
+      const bar=`<div class="rq-bar">${parts.map(([l,v])=>`<i style="width:${(v.m/tot*100).toFixed(1)}%;background:var(${v.v})" title="${esc(l)}"></i>`).join('')}<i style="width:${(g.sem/tot*100).toFixed(1)}%;background:var(--line-2)" title="Sem regularização"></i></div>`;
+      reg=`${bar}<div class="rq-leg">${parts.map(([l,v])=>`<span><i style="background:var(${v.v})"></i>${esc(l)}: <b>${fmtM(v.m)}</b></span>`).join('')}<span><i style="background:var(--line-2)"></i>Sem regularização: <b>${fmtM(g.sem)}</b></span></div>
+       ${g.quem.length?`<div class="rq-proj">${g.quem.slice(0,4).map((q,j)=>`<a href="#" data-g="${i}_${j}">${esc(q.g.nome)}</a> <span class="hint">· ${esc(rrSt(q.g.st).label)}${q.g.prot?' · protocolo '+esc(q.g.prot):''}</span>`).join('<br>')}</div>`:''}`;}
+    return `<div class="rq-card"><div class="row"><div class="grow"><b>${esc(r[0])}</b> <span class="hint">· ${esc(r[1])}</span><div><b class="rede-sim">Tem cabo nosso</b> · ${fmtM(r[2])} de cabos lançados</div></div><button class="btn small" data-map="${i}">Ver no mapa</button></div>${reg}</div>`;}).join('');
+  const quemAll=res.map(r=>{const g=regDaRua(r,geoms);return g?g.quem:[];});
+  bx.querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{const r=res[+b.dataset.map];showView('mapa');map.flyTo([r[3],r[4]],17,{duration:.6});});
+  bx.querySelectorAll('[data-g]').forEach(a=>a.onclick=e=>{e.preventDefault();const [i,j]=a.dataset.g.split('_').map(Number);const q=quemAll[i][j];if(q)q.g.go();});}
+function consultaInit(){const q=$('#rq-q'),c=$('#rq-cid');if(!q)return;
+  const fillCid=()=>{if(!S.ruas)return;const cur=c.value;const cs=[...new Set(S.ruas.ruas.map(r=>r[1]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));c.innerHTML='<option value="">Todas as cidades</option>'+cs.map(x=>`<option ${x===cur?'selected':''}>${esc(x)}</option>`).join('');};
+  q.oninput=()=>{clearTimeout(q._t);q._t=setTimeout(()=>{RQ.q=q.value;renderConsulta();},200);};c.onchange=()=>{RQ.cid=c.value;renderConsulta();};
+  $('#rq-lista').onclick=()=>ruasBox($('#ruas-box').hidden);fillCid();renderConsulta();consultaInit.fill=fillCid;}
+
 /* ================= views ================= */
 let curView='dash';
 function lerBox(open){const bx=$('#leitor-box'),bt=$('#btn-ler');if(!bx)return;bx.hidden=!open;if(bt)bt.setAttribute('aria-expanded',String(open));if(open)setTimeout(()=>{bx.scrollIntoView({block:'start',behavior:'smooth'});$('#paste').focus();},50);}
 function showView(v){if(v==='leitor'){v='lista';setTimeout(()=>lerBox(true),0);}curView=v;document.querySelectorAll('.navi').forEach(t=>t.setAttribute('aria-current',t.dataset.v===v?'page':'false'));
   document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!=='v-'+v);if(v==='mapa'){map.invalidateSize({pan:false});fitOnce();}renderView();}
 document.querySelectorAll('.navi,.kmzbox').forEach(t=>t.onclick=()=>showView(t.dataset.v));
-$('#btn-ler').onclick=()=>lerBox($('#leitor-box').hidden);$('#rd-close').onclick=()=>lerBox(false);
+consultaInit();$('#btn-ler').onclick=()=>lerBox($('#leitor-box').hidden);$('#rd-close').onclick=()=>lerBox(false);
 function renderView(){if(curView==='lista')renderTable();else if(curView==='dash')renderDash();else if(curView==='regular')renderRegList();else if(curView==='rota')renderRotaPage();else if(curView==='retirada')renderRetPage();else if(curView==='rel')renderRel();else if(curView==='fin')renderFin();else if(curView==='comb')renderComb();}
 function refresh(){renderMarkers();renderSinal();renderSide();renderView();}
 
@@ -2725,20 +2865,21 @@ if(innerWidth>860)$('#legend').open=true;
 buildChips();buildMesSelect();buildStatusSelect();buildCidadeSelect();renderSide();
 new ResizeObserver(()=>map.invalidateSize()).observe($('#map'));addEventListener('load',()=>map.invalidateSize());
 fetch('municipios.json').then(r=>r.json()).then(d=>{muniData=d;drawMun();buildCityLabels();cityLayer._req();if(curView==='dash')drawMini();}).catch(()=>{});
-fetch('ruas.json').then(r=>r.ok?r.json():null).then(d=>{if(d){S.ruas=d;RUA_IDX=null;renderView();}}).catch(()=>{});
+
 let rotaLoaded=null;
 async function loadRota(cfg){const src=cfg&&cfg.assetId?'/_blob/'+cfg.assetId:'rota.json';if(rotaLoaded===src)return;rotaLoaded=src;
   try{const r=await (await fetch(src)).json();setRota(r);}catch(e){console.error(e);if(src!=='rota.json'){rotaLoaded=null;loadRota(null);}}}
 const banner=t=>{const b=$('#banner');b.textContent=t;b.hidden=!t;};
 (async()=>{
-  const cl=window.claude;if(!cl||!cl.use){banner('Banco de dados indisponível nesta visualização: o mapa mostra só a rota base.');loadRota(null);return;}
+  const cl=window.claude;if(!cl||!cl.use){banner('Banco de dados indisponível nesta visualização: o mapa mostra só a rota base.');loadRota(null);loadRuas(null);return;}
   [db,assets,user,downloads,sample]=await Promise.all(['db','assets','user','downloads','sample'].map(n=>cl.use(n).catch(()=>null)));
   if(user){try{myId=await user.id();}catch(e){}try{canWrite=await user.can('data.write');}catch(e){}}
   if(canWrite===false)banner('Você está no modo leitura: pode consultar, mas não alterar status nem enviar arquivos.');
-  if(!db){banner('Banco de dados indisponível nesta visualização: o mapa mostra só a rota base.');loadRota(null);return;}
+  if(!db){banner('Banco de dados indisponível nesta visualização: o mapa mostra só a rota base.');loadRota(null);loadRuas(null);return;}
   let first=true;
   db.doc('config/rota').onSnapshot(s=>{S.cfgRota=s.exists?s.data():null;loadRota(S.cfgRota);if(!first&&curView==='rota')renderRotaPage();},()=>loadRota(null));
   setTimeout(()=>{if(!S.rota)loadRota(null);},4000);
+  db.doc('config/ruas').onSnapshot(s=>{RZ.cfg=s.exists?s.data():null;loadRuas(RZ.cfg);renderRuasBox();},()=>loadRuas(null));
   db.collection('notificacoes').onSnapshot(q=>{const n={};q.docs.forEach(d=>{const b=d.data();const it=b.itens||{};for(const k in it){if(!it[k])continue;n[k]={...it[k],id:k,mes:d.id};}});S.notif=n;for(const k in CITY_NAMES)delete CITY_NAMES[k];
       buildRespSelect();fitOnce();const lu=itemsAll().reduce((m,i)=>i.alteradoEm&&i.alteradoEm>m?i.alteradoEm:m,'');const lu2=lu||(S.hist['2026-09']||{}).lidoEm||'';$('#upd').textContent='Última atualização: '+(lu2?new Date(lu2).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—');buildMesSelect();buildStatusSelect();buildCidadeSelect();refresh();first=false;},
     e=>banner('Não foi possível ler as notificações ('+e.code+').'));
