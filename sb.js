@@ -67,7 +67,7 @@ const blobCache={};const realFetch=window.fetch.bind(window);
 window.fetch=async(u,o)=>{if(typeof u==='string'&&u.startsWith('/_blob/')){await authed;const id=u.slice(7);
   if(blobCache[id]==null){const {data,error}=await sb.from('blobs').select('content').eq('id',id).maybeSingle();if(error||!data)return new Response('',{status:404});blobCache[id]=data.content;}
   return new Response(blobCache[id],{status:200});}return realFetch(u,o);};
-const assets={upload:async b=>{await authed;const id=Date.now().toString(16)+Math.random().toString(16).slice(2,10);const t=await b.text();const {error}=await sb.from('blobs').insert({id,content:t});if(error)throw err(error);blobCache[id]=t;return {id,url:'/_blob/'+id};}};
+const assets={upload:async b=>{await authed;const id=Date.now().toString(16)+Math.random().toString(16).slice(2,10);const bin=b.type&&!/json|text|xml/.test(b.type);const t=bin?await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);}):await b.text();const {error}=await sb.from('blobs').insert({id,content:t});if(error)throw err(error);blobCache[id]=t;return {id,url:'/_blob/'+id};}};
 const user={id:async()=>{await authed;return session.user.id;},can:async()=>{await authed;return true;},
   profiles:async ids=>{await authed;const o={};(ids||[]).forEach(i=>{if(i===session.user.id)o[i]={name:session.user.email};});return o;}};
 const downloads={save:async r=>{const a=document.createElement('a');a.href=URL.createObjectURL(r.data);a.download=r.filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);return {status:'saved'};}};
