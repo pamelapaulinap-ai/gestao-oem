@@ -2516,25 +2516,47 @@ function finLpu(box,m){const rels=lpuMes(m);const tot=rels.reduce((s,r)=>s+(r.to
 function finTerc(box){const ro=canWrite===false?'disabled':'';const L=tercList();const f=F.tform;
   const brutos={};Object.values(F.lpu).forEach(r=>{if(terMatch(r))return;const k=dig(r.cnpj)||norm(r.empresa);if(!k)return;const b=brutos[k]=brutos[k]||{empresa:r.empresa,cnpj:r.cnpj,tec:new Set(),n:0,tot:0};b.n++;b.tot+=r.total||0;if(r.tecnicos)b.tec.add(r.tecnicos);});
   const sem=Object.values(brutos).sort((a,b)=>b.tot-a.tot);
-  box.innerHTML=`<div class="row"><div class="grow"><p class="hint" style="margin:0">Cadastre cada terceiro com o nome certo e o CNPJ. Nas LPUs, o painel troca o nome que vier escrito pelo nome cadastrado, buscando pelo CNPJ da empresa ou do técnico. Vale também para o que já foi lançado.</p></div><button class="btn primary" id="tc-new" ${ro}>+ Cadastrar terceiro</button></div>
+  box.innerHTML=`<div class="row"><div class="grow"><p class="hint" style="margin:0">Cadastre cada terceiro com o nome certo e o CNPJ. Nas LPUs, o painel troca o nome que vier escrito pelo nome cadastrado, buscando pelo CNPJ da empresa ou do técnico. Vale também para o que já foi lançado.</p></div><label class="btn" ${ro?'aria-disabled="true"':''}><input type="file" id="tc-imp" accept=".xlsx,.xls,.csv" hidden ${ro}>Importar planilha de fornecedores</label><button class="btn primary" id="tc-new" ${ro}>+ Cadastrar terceiro</button></div>
+   <div class="row" style="margin-top:-4px"><input type="search" id="tc-q" class="grow" placeholder="Buscar terceiro, código, CNPJ ou técnico" value="${esc(F.tq||'')}"></div>
    ${f?tercFormHtml(f):''}
-   ${L.length?L.map(t=>{const n=Object.values(F.lpu).filter(r=>terRes(r).tercId===t.id);const a=CONTA[t.conta];
-     return `<div class="card"><div class="row"><div class="grow"><b style="font:600 17px var(--f-display)">${esc(t.nome)}</b> <span class="mono hint">${esc(t.cnpj||'sem CNPJ')}</span><div class="hint">${a?`Conta padrão: ${a.c} · ${esc(a.n)} · `:''}${n.length} relatório(s) de LPU · ${brl0(n.reduce((s,r)=>s+(r.total||0),0))}${(t.apelidos||[]).length?' · também aparece como: '+t.apelidos.map(esc).join(', '):''}</div></div>
+   ${L.length?L.filter(t=>{const q=norm(F.tq||'');return !q||norm([t.nome,t.obs,t.codigo,t.cnpj,t.tipo,...(t.tecnicos||[]).map(x=>x.nome)].join(' ')).includes(q)||(dig(q)&&dig(t.cnpj).includes(dig(q)));}).map(t=>{const n=Object.values(F.lpu).filter(r=>terRes(r).tercId===t.id);const a=CONTA[t.conta];
+     return `<div class="card"><div class="row"><div class="grow"><b style="font:600 17px var(--f-display)">${esc(t.nome)}</b> <span class="mono hint">${esc(t.cnpj||'sem CNPJ')}</span><div class="hint">${[t.codigo?'Cód. '+esc(t.codigo):'',t.tipo?esc(t.tipo):'',t.obs?esc(t.obs):'',t.telefone?'☎ '+esc(t.telefone):'',t.email?esc(t.email):''].filter(Boolean).join(' · ')}</div><div class="hint">${a?`Conta padrão: ${a.c} · ${esc(a.n)} · `:''}${n.length} relatório(s) de LPU · ${brl0(n.reduce((s,r)=>s+(r.total||0),0))}${(t.apelidos||[]).length?' · também aparece como: '+t.apelidos.map(esc).join(', '):''}</div></div>
        ${ro?'':`<button class="btn small" data-te="${esc(t.id)}">Editar</button><button class="btn small" data-td="${esc(t.id)}">Remover</button>`}</div>
        ${(t.tecnicos||[]).length?`<div class="tablewrap" style="margin-top:8px"><table class="mini"><thead><tr><th>Técnico</th><th>CNPJ / CPF</th></tr></thead><tbody>${t.tecnicos.map(x=>`<tr><td>${esc(x.nome)}</td><td class="mono">${esc(x.cnpj||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint" style="margin:6px 0 0">Nenhum técnico cadastrado.</p>'}</div>`;}).join(''):'<div class="card"><p class="hint" style="margin:0">Nenhum terceiro cadastrado ainda.</p></div>'}
    ${sem.length?`<div class="card"><h3>Nomes nas LPUs sem cadastro</h3><p class="hint" style="margin:0 0 8px">Como aparecem nos relatórios já salvos. Clique em "Cadastrar" para registrar com o nome certo.</p><div class="tablewrap"><table><thead><tr><th>Como veio na LPU</th><th>CNPJ</th><th>Técnicos</th><th class="r">Relatórios</th><th class="r">Total</th><th></th></tr></thead><tbody>
      ${sem.map((b,i)=>`<tr><td>${esc(b.empresa||'—')}</td><td class="mono">${esc(b.cnpj||'—')}</td><td class="hint">${esc([...b.tec].join(', '))}</td><td class="r num">${b.n}</td><td class="r num">${brl0(b.tot)}</td><td class="r">${ro?'':`<button class="btn small" data-tb="${i}">Cadastrar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
   const open=o=>{F.tform=o;renderFin();const el=$('#tc-form');if(el)el.scrollIntoView({block:'center'});};
   $('#tc-new').onclick=()=>{if(noEdit())return;open({tecnicos:[]});};
+  const tq=$('#tc-q');tq.oninput=()=>{clearTimeout(tq._t);tq._t=setTimeout(()=>{F.tq=tq.value;renderFin();const e=$('#tc-q');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250);};
+  const ti=$('#tc-imp');if(ti)ti.onchange=async()=>{const f=ti.files[0];ti.value='';if(!f)return;if(noEdit())return;if(!window.XLSX){toast('Leitor de Excel indisponível nesta visualização');return;}
+    try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});let rows=[];for(const n of wb.SheetNames){rows=fornParse(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:''}));if(rows.length)break;}
+      if(!rows.length){toast('Não achei a coluna FORNECEDORES na planilha');return;}const r=await fornImport(rows);toast(`${r.novos} fornecedor(es) novo(s) e ${r.atual} atualizado(s)`);}catch(e){console.error(e);handleWriteErr(e);}};
   box.querySelectorAll('[data-te]').forEach(b=>b.onclick=()=>open({...L.find(t=>t.id===b.dataset.te)}));
   box.querySelectorAll('[data-tb]').forEach(b=>b.onclick=()=>{const x=sem[+b.dataset.tb];open({nome:'',cnpj:x.cnpj||'',apelidos:x.empresa?[x.empresa]:[],tecnicos:[...x.tec].map(n=>({nome:n,cnpj:''}))});});
   box.querySelectorAll('[data-td]').forEach(b=>b.onclick=async()=>{if(noEdit())return;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='Confirmar';b.style.color='var(--critical)';setTimeout(()=>{b.dataset.ok='';b.textContent='Remover';b.style.color='';},4000);return;}
     try{await finWrite('terceiros',{lista:{[b.dataset.td]:null}});toast('Terceiro removido');}catch(e){handleWriteErr(e);}});
   if(f)tercFormWire();}
+const fmtCnpj=s=>{const d=dig(s);return d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):String(s||'').trim();};
+function fornParse(aoa){const H={nome:/fornecedor|razao|^nome/,codigo:/^cod/,tipo:/tipo/,cnpj:/cnpj|cpf/,telefone:/telefone|fone|celular|whats/,email:/e ?mail/};
+  const hi=aoa.findIndex(r=>r.some(c=>/fornecedor/.test(norm(c))));if(hi<0)return [];const col={};aoa[hi].forEach((c,i)=>{const n=norm(c);for(const k in H)if(col[k]==null&&H[k].test(n))col[k]=i;});
+  return aoa.slice(hi+1).map(r=>{const v=k=>col[k]==null?'':String(r[col[k]]??'').trim();const bruto=v('nome');if(!bruto)return null;
+    const m=/^(.*?)\s*\(([^)]*)\)\s*(.*)$/.exec(bruto);const nome=(m?(m[1]+' '+m[3]):bruto).replace(/\s+/g,' ').trim();
+    return {bruto,nome,obs:m?m[2].trim():'',codigo:v('codigo').toUpperCase(),tipo:v('tipo'),cnpj:fmtCnpj(v('cnpj')),telefone:v('telefone'),email:v('email')};}).filter(Boolean);}
+async function fornImport(rows){const L=tercList();const patch={};let novos=0,atual=0;
+  for(const x of rows){const ex=L.find(t=>(x.codigo&&t.codigo===x.codigo)||(dig(x.cnpj)&&dig(t.cnpj)===dig(x.cnpj))||norm(t.nome)===norm(x.nome));
+    const ap=new Set([...(ex&&ex.apelidos)||[]]);if(x.bruto!==x.nome)ap.add(x.bruto);
+    const d={nome:x.nome,codigo:x.codigo,tipo:x.tipo,obs:x.obs||(ex&&ex.obs)||'',telefone:x.telefone||(ex&&ex.telefone)||'',email:x.email||(ex&&ex.email)||'',cnpj:x.cnpj||(ex&&ex.cnpj)||'',apelidos:[...ap]};
+    if(ex){atual++;patch[ex.id]=d;}else{novos++;patch[(x.codigo?x.codigo.toLowerCase():norm(x.nome).replace(/ /g,'-').slice(0,40))]={...d,conta:'',tecnicos:[]};}}
+  await finWrite('terceiros',{lista:patch});return {novos,atual};}
 const tecRow=x=>`<div class="row trow" style="margin-bottom:6px"><input type="text" class="grow" data-x="nome" placeholder="Nome correto do técnico" value="${esc(x.nome||'')}"><input type="text" data-x="cnpj" style="width:190px" placeholder="CNPJ ou CPF (opcional)" value="${esc(x.cnpj||'')}"><button class="btn small" data-x="rm" type="button" aria-label="Remover técnico">✕</button></div>`;
 function tercFormHtml(t){return `<div class="card" id="tc-form" style="border-color:var(--focus)"><h3>${t.id?'Editar terceiro':'Novo terceiro'}</h3>
   <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><label class="fld"><span>Nome correto</span><input type="text" data-k="nome" value="${esc(t.nome||'')}" placeholder="Ex.: Dois Irmãos Telecom"></label>
    <label class="fld"><span>CNPJ da empresa</span><input type="text" data-k="cnpj" value="${esc(t.cnpj||'')}" placeholder="00.000.000/0000-00"></label>
+   <label class="fld"><span>Código do fornecedor</span><input type="text" data-k="codigo" value="${esc(t.codigo||'')}" placeholder="Ex.: F0001352"></label>
+   <label class="fld"><span>Tipo de serviço</span><input type="text" data-k="tipo" value="${esc(t.tipo||'')}" placeholder="Ex.: MANUTENÇÃO"></label>
+   <label class="fld"><span>Responsável / observação</span><input type="text" data-k="obs" value="${esc(t.obs||'')}" placeholder="Ex.: Ezequias"></label>
+   <label class="fld"><span>Telefone</span><input type="text" data-k="telefone" value="${esc(t.telefone||'')}"></label>
+   <label class="fld"><span>E-mail</span><input type="text" data-k="email" value="${esc(t.email||'')}"></label>
    <label class="fld"><span>Conta contábil padrão</span><select data-k="conta"><option value="">—</option>${CONTAS.map(a=>`<option value="${a.c}" ${a.c===t.conta?'selected':''}>${a.c} · ${esc(a.n)}</option>`).join('')}</select></label></div>
   <label class="fld" style="margin-top:10px"><span>Outros nomes como aparece nas LPUs (um por linha, opcional)</span><textarea data-k="apelidos" rows="2">${esc((t.apelidos||[]).join('\n'))}</textarea></label>
   <h4 class="sub" style="margin:14px 0 6px">Técnicos</h4><p class="hint" style="margin:0 0 6px">Quando o técnico tem CNPJ próprio (MEI) e ele aparece na LPU, o relatório é ligado a este terceiro e o nome do técnico sai daqui.</p>
@@ -2546,7 +2568,7 @@ function tercFormWire(){const fm=$('#tc-form');const wire=()=>fm.querySelectorAl
     const cn=g('cnpj');const outro=tercList().find(t=>t.id!==F.tform.id&&dig(cn)&&dig(t.cnpj)===dig(cn));if(outro){$('#tc-err').textContent='Esse CNPJ já está cadastrado em '+outro.nome+'.';return;}
     const tecnicos=[...fm.querySelectorAll('.trow')].map(r=>({nome:r.querySelector('[data-x="nome"]').value.trim(),cnpj:r.querySelector('[data-x="cnpj"]').value.trim()})).filter(x=>x.nome);
     const id=F.tform.id||norm(nome).replace(/ /g,'-').slice(0,40)+'-'+Date.now().toString(36);
-    try{await finWrite('terceiros',{lista:{[id]:{nome,cnpj:cn,conta:g('conta'),apelidos:g('apelidos').split('\n').map(x=>x.trim()).filter(Boolean),tecnicos}}});F.tform=null;toast('Terceiro salvo');renderFin();}catch(e){handleWriteErr(e);}};}
+    try{await finWrite('terceiros',{lista:{[id]:{nome,cnpj:cn,conta:g('conta'),codigo:g('codigo'),tipo:g('tipo'),obs:g('obs'),telefone:g('telefone'),email:g('email'),apelidos:g('apelidos').split('\n').map(x=>x.trim()).filter(Boolean),tecnicos}}});F.tform=null;toast('Terceiro salvo');renderFin();}catch(e){handleWriteErr(e);}};}
 
 /* ---------- aba: contratos fora da LPU ---------- */
 const TIPO_CTR={fixo:'Valor fixo',meta:'Meta de atividades',avulso:'Valor informado no mês',pontual:'Atividade avulsa (terceiro pontual)'};
