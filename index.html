@@ -2221,7 +2221,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2254,8 +2254,19 @@ function ctrCalc(c,m){const md=ctrMes(c,m);const meta=c.meta||{qtd:0,unit:0};
   return {md,base,bonus,exc,extraQ,falta,total:base+bonus+exc};}
 const ctrConta=(code,m)=>contratosMes(m).filter(c=>c.conta===code).reduce((s,c)=>s+ctrCalc(c,m).total,0);
 
+/* ---------- terceiros e técnicos (nome correto pelo CNPJ) ---------- */
+const dig=s=>String(s||'').replace(/\D/g,'');
+const tercList=()=>Object.entries((F.cfg.terceiros||{}).lista||{}).filter(([,t])=>t).map(([id,t])=>({...t,id})).sort((a,b)=>a.nome.localeCompare(b.nome));
+let TERC_IDX=null,TERC_SRC=null;
+function terIdx(){const src=(F.cfg.terceiros||{}).lista;if(TERC_IDX&&TERC_SRC===src)return TERC_IDX;TERC_SRC=src;TERC_IDX={cnpj:{},nome:{}};
+  for(const t of tercList()){if(dig(t.cnpj))TERC_IDX.cnpj[dig(t.cnpj)]={t};(t.apelidos||[]).forEach(a=>{if(norm(a))TERC_IDX.nome[norm(a)]={t};});TERC_IDX.nome[norm(t.nome)]={t};
+    (t.tecnicos||[]).forEach(x=>{if(dig(x.cnpj))TERC_IDX.cnpj[dig(x.cnpj)]={t,tec:x};});}return TERC_IDX;}
+function terMatch(r){const T=terIdx();const L=(F.cfg.terceiros||{}).lista||{};if(r.terc&&L[r.terc])return {t:{...L[r.terc],id:r.terc}};
+  return T.cnpj[dig(r.cnpj)]||T.nome[norm(r.empresa)]||null;}
+function terRes(r){const h=terMatch(r);if(!h)return r;const t=h.t;return {...r,empresa:t.nome,empresaLpu:r.empresaLpu||r.empresa,cnpj:r.cnpj||t.cnpj||'',tecnicos:h.tec?h.tec.nome:(r.tecnicos||''),conta:r.conta||t.conta||'',tercId:t.id};}
+
 /* ---------- LPU lida dos PDFs ---------- */
-const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({...r,id})).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
+const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({...terRes(r),id})).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
 const lpuConta=(code,m)=>lpuMes(m).filter(r=>r.conta===code).reduce((s,r)=>s+(r.total||0),0);
 function execConta(code,m){const base=((F.cfg.budget.base||{})[code]||{})[m];const pdf=lpuConta(code,m);const usaBase=base!=null&&base!=='';
   const lpu=usaBase?Number(base):pdf;const ctr=ctrConta(code,m);return {lpu,pdf,base:usaBase?Number(base):null,ctr,total:lpu+ctr};}
@@ -2270,14 +2281,14 @@ const statCard=(l,b,e,cls)=>`<div class="card fstat ${cls||''}"><div class="fl">
 function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
   const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{})]);
   const ger=F.sub==='geral';
-  box.innerHTML=`<div class="row">${ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
-    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
-    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end">${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
+  const tcx=F.sub==='terc';box.innerHTML=`<div class="row">${tcx?'':ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
+    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU'],['terc','Terceiros e técnicos']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
+    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end" ${tcx?'hidden':''}>${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
   if($('#fin-mes'))$('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
   if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderFin();};
   box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{F.sub=b.dataset.sub;renderFin();});
   $('#fin-xls').onclick=()=>ger?finExcelGeral():finExcelMes(m);
-  ({geral:finGeral,conta:finConta,lpu:finLpu,ctr:finCtr})[F.sub]($('#fin-sub'),m);}
+  ({geral:finGeral,conta:finConta,lpu:finLpu,ctr:finCtr,terc:finTerc})[F.sub]($('#fin-sub'),m);}
 
 
 /* ---------- visão geral (todos os meses) ---------- */
@@ -2391,10 +2402,28 @@ const brDate=s=>{const m=/(\d{2})\/(\d{2})\/(\d{4})/.exec(s||'');return m?`${m[3
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 function contaDe(desc){const m=/(?:^|[.\s])(\d{4})\s*-/.exec(desc||'')||/\b(\d{4})\b/.exec(desc||'');return m?m[1]:'';}
 function mkRel(r,arquivo){const data=r.data||r.ate||r.de||'';const soma=Math.round((r.itens||[]).reduce((s,i)=>s+(i.t||0),0)*100)/100;
-  const total=r.total!=null&&r.total>0?r.total:soma;const o={mes:data?data.slice(0,7):F.mes,data,de:r.de||'',ate:r.ate||'',empresa:r.empresa||'',cnpj:r.cnpj||'',tecnicos:r.tecnicos||'',cidade:r.cidade||'',cliente:r.cliente||'',etiqueta:r.etiqueta||'',
+  const total=r.total!=null&&r.total>0?r.total:soma;const o={mes:data?data.slice(0,7):(r.mes||F.mes),formato:r.formato||'',terc:r.terc||'',data,de:r.de||'',ate:r.ate||'',empresa:r.empresa||'',cnpj:r.cnpj||'',tecnicos:r.tecnicos||'',cidade:r.cidade||'',cliente:r.cliente||'',etiqueta:r.etiqueta||'',
     conta:contaDe(r.contaDesc),contaDesc:r.contaDesc||'',total,itens:r.itens||[],arquivo};
-  o.id='r'+hash([o.cnpj||o.empresa,o.etiqueta,o.data,o.cliente,total.toFixed(2)].join('|'));
-  o.aviso=!o.itens.length?'Sem itens: confira o arquivo':Math.abs(soma-total)>0.05?`Soma dos itens (${brl(soma)}) diferente do total geral`:!o.empresa?'Empresa não identificada':!o.data?'Data não identificada':'';return o;}
+  o.id='r'+hash(r.formato==='antigo'?['antigo',o.etiqueta||arquivo,o.mes,total.toFixed(2)].join('|'):[o.cnpj||o.empresa,o.etiqueta,o.data,o.cliente,total.toFixed(2)].join('|'));
+  o.aviso=lpuAviso(o,soma);return o;}
+function lpuAviso(o,soma){const x=terRes(o);if(soma==null)soma=Math.round((o.itens||[]).reduce((s,i)=>s+(i.t||0),0)*100)/100;
+  return !o.itens.length?'Sem itens: confira o arquivo':Math.abs(soma-o.total)>0.05?`Soma dos itens (${brl(soma)}) diferente do total geral`:!x.empresa?'Escolha o terceiro':!x.conta?'Escolha a conta contábil':(!o.data&&o.formato!=='antigo')?'Data não identificada':'';}
+const MESNOME={JANEIRO:1,FEVEREIRO:2,MARCO:3,'MARÇO':3,ABRIL:4,MAIO:5,JUNHO:6,JULHO:7,AGOSTO:8,SETEMBRO:9,OUTUBRO:10,NOVEMBRO:11,DEZEMBRO:12};
+function parseLpuAntigo(T,arquivo,ano){/* formato antigo: só a tabela de itens, sem cabeçalho de empresa; o mês vem de "REF. ABRIL" */
+  if(!/RELAT[ÓO]RIO DE PRESTA[ÇC][ÃA]O DE SERVI[ÇC]OS/i.test(T)||/Empresa\s/.test(T)||!/C[óo]d\./.test(T))return [];
+  const flat=s=>String(s||'').replace(/\s+/g,' ').trim();const P=T.split(/RELAT[ÓO]RIO FOTOGR[ÁA]FICO/i)[0];
+  const subs=[];P.replace(/SUBTOTAL\s+([^:]+?):/gi,(m,c,idx)=>{subs.push({c:flat(c),idx});return m;});
+  const itens=[];const re=/(?:^|\s)([A-Z]{2,5}\d{3,6})\s+([\s\S]+?)\s+(?:R\$\s*)?(\d[\d.,]*)\s+(\d[\d.,]*)\s+(?:R\$\s*)?(\d[\d.,]*\d)(?=\s|$)([\s\S]*?)(?=\s[A-Z]{2,5}\d{3,6}\s|\sSUBTOTAL|$)/gi;let m;
+  while((m=re.exec(P))){const cells=m[2].split('\t').map(flat).filter(Boolean);let d,f='',cl='',md='';
+    const nx=subs.find(x=>x.idx>m.index);const c=nx?nx.c:'';const M=cells.join(' ');const x=c?new RegExp('^(.*)\\s'+reEsc(c)+'\\s(\\S+)$','i').exec(M):null;
+    if(x){cl=c;md=x[2];const k=x[1].lastIndexOf(' ');f=k>0?x[1].slice(k+1):'';d=k>0?x[1].slice(0,k):x[1];}
+    else if(cells.length>=4){md=cells[cells.length-1];cl=cells[cells.length-2];f=cells[cells.length-3];d=cells.slice(0,-3).join(' ');}else d=M;
+    const resto=flat(m[6]).replace(/TOTAL GERAL.*$/i,'').trim();if(resto&&resto.length<120&&!/R\$/.test(resto))d=(d+' '+resto).trim();
+    itens.push({c:m[1].toUpperCase(),d,f,cl,m:md,u:pnum(m[3]),q:pnum(m[4]),t:pnum(m[5])});}
+  if(!itens.length)return [];
+  const tg=/TOTAL\s+GERAL:?\s*R\$\s*([\d.,]+)/i.exec(T);const ref=/REF\.?\s*([A-ZÇ]+)/i.exec(T);const mn=ref?MESNOME[ref[1].toUpperCase()]:0;
+  const rel=(/Relat[óo]rio[_ ]?(\d{5,})/i.exec(arquivo)||[])[1]||'';
+  return [mkRel({formato:'antigo',mes:mn?ano+'-'+String(mn).padStart(2,'0'):'',etiqueta:rel,total:tg?pnum(tg[1]):null,itens},arquivo)];}
 function parseLpuText(T,arquivo){const flat=s=>String(s||'').replace(/\s+/g,' ').trim();
   const partes=T.split(/(?=Relat[óo]rio de Presta[çc][ãa]o de Servi[çc]os\s+Empresa\b)/i).filter(p=>/Empresa\s/.test(p)&&/C[óo]d\./.test(p));
   return partes.map(P=>{const g=re=>{const m=re.exec(P);return m?flat(m[1]):'';};
@@ -2425,11 +2454,12 @@ async function lerPdfsLpu(files){if(!window.pdfjsLib){toast('Leitor de PDF indis
     try{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;const tok=[];
       for(let p=1;p<=Math.min(pdf.numPages,300);p++){const tc=await (await pdf.getPage(p)).getTextContent();for(const it of tc.items){const s=(it.str||'').replace(/\s+/g,' ').trim();if(s)tok.push(s);}}
       const T=tok.join('\t');let rels=parseLpuText(T,f.name);
+      if(!rels.length){let ano=(F.mes||mesAtual()).slice(0,4);try{const md=await pdf.getMetadata();const cd=/D:(\d{4})(\d{2})/.exec((md.info||{}).CreationDate||'');if(cd)ano=cd[1];}catch(e){}rels=parseLpuAntigo(T,f.name,ano);}
       if(!rels.length||rels.every(r=>!r.itens.length)){let imgs=[];
         if(T.replace(/\s/g,'').length<80){for(let p=1;p<=Math.min(pdf.numPages,2);p++){const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:1.7});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;imgs.push(await new Promise(r=>c.toBlob(r,'image/png')));}}
         try{const ia=await lpuIA(imgs.length?'':T,imgs,f.name);if(ia.length)rels=ia;}catch(e){console.error(e);}}
       if(!rels.length){falhas.push(f.name);continue;}
-      for(const r of rels){r.sel=!F.lpu[r.id];const k=F.lidos.findIndex(x=>x.id===r.id);if(k>=0)F.lidos[k]=r;else F.lidos.push(r);}
+      for(const r of rels){if(F.tsel){r.terc=F.tsel;}if(F.tcon&&!r.conta)r.conta=F.tcon;r.aviso=lpuAviso(r);r.sel=!F.lpu[r.id];const k=F.lidos.findIndex(x=>x.id===r.id);if(k>=0)F.lidos[k]=r;else F.lidos.push(r);}
     }catch(e){console.error(e);falhas.push(f.name);}}
   F.lendo=falhas.length?`Não foi possível ler: ${falhas.join(', ')}. Confira se é o Relatório de Prestação de Serviços em PDF.`:'';renderFin();}
 function lpuAoa(rels){const A=[['Data do relatório','Período','Empresa','CNPJ','Técnicos','Cidade','Cliente / POP','ID / Etiqueta','Conta contábil','Descrição contábil','CAPEX/OPEX','Total (R$)','Arquivo']];
@@ -2449,28 +2479,74 @@ function finLpu(box,m){const rels=lpuMes(m);const tot=rels.reduce((s,r)=>s+(r.to
   const rank=(key)=>{const o={};rels.forEach(r=>{const k=key(r)||'(não identificado)';o[k]=(o[k]||0)+(r.total||0);});return Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,12);};
   box.innerHTML=`<div class="card"><h3>Ler relatórios de LPU (PDF)</h3>
      <label class="drop" id="lpu-drop" style="cursor:pointer;justify-items:center;text-align:center"><b>Arraste aqui os PDFs dos "Relatórios de Prestação de Serviços"</b><span class="hint">ou clique para escolher. Pode enviar vários de uma vez; cada relatório vira uma atividade com todos os itens da LPU.</span><input type="file" id="lpu-file" accept="application/pdf,.pdf" multiple hidden></label>
+     <div class="row" style="margin-top:10px"><label class="fld" style="min-width:240px"><span>Terceiro destes PDFs</span><select id="lpu-terc"><option value="">Identificar pelo CNPJ do PDF</option>${tercList().map(t=>`<option value="${esc(t.id)}" ${t.id===F.tsel?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>
+       <label class="fld" style="min-width:240px"><span>Conta contábil (se o PDF não trouxer)</span><select id="lpu-conta"><option value="">—</option>${CONTAS.map(a=>`<option value="${a.c}" ${a.c===F.tcon?'selected':''}>${a.c} · ${esc(a.n)}</option>`).join('')}</select></label>
+       <p class="hint grow" style="margin:0;align-self:end">LPUs no formato antigo não trazem empresa nem conta: escolha aqui antes de enviar e todas ficam salvas como desse terceiro. ${tercList().length?'':'Cadastre os terceiros na aba "Terceiros e técnicos".'}</p></div>
      <p class="hint" id="lpu-msg" style="margin:8px 0 0">${esc(F.lendo)}</p>
      ${L.length?`<div class="row" style="margin:12px 0 8px"><b>${L.length} relatório(s) lido(s) · ${brl(L.reduce((s,r)=>s+(r.total||0),0))}</b><div class="grow"></div><button class="btn" id="lpu-xls-l">Baixar Excel desta leitura</button><button class="btn primary" id="lpu-save" ${ro?'disabled':''}>Salvar selecionados no painel</button><button class="btn" id="lpu-clear">Limpar</button></div>
      <div class="tablewrap"><table><thead><tr><th></th><th>Data</th><th>Empresa / técnicos</th><th>Cidade</th><th>Cliente / POP</th><th>Conta</th><th class="r">Itens</th><th class="r">Total</th><th>Situação</th></tr></thead><tbody>${L.map((r,k)=>{const ja=!!F.lpu[r.id];const op=F.opened.has('l'+r.id);
-       return `<tr class="click" data-l="${k}"><td><input type="checkbox" data-sel="${k}" ${r.sel?'checked':''} aria-label="Selecionar"></td>${relRow(r,`<td>${ja?'<span class="pill" style="color:var(--fg-3)">Já lançado</span>':r.aviso?`<span class="pill" style="color:var(--warn)">Conferir</span><div class="hint">${esc(r.aviso)}</div>`:'<span class="pill" style="color:var(--good)">Novo</span>'}${r.ia?'<div class="hint">lido por IA: confira os valores</div>':''}</td>`)}</tr>${op?`<tr><td></td><td colspan="8">${itensTable(r)}</td></tr>`:''}`;}).join('')}</tbody></table></div>`:''}</div>
-   <div class="kpis"><div class="kpi"><span class="l">LPU lida em ${mesCurto(m)}</span><span class="v">${brl0(tot)}</span><span class="s">soma dos relatórios salvos</span></div><div class="kpi"><span class="l">Relatórios</span><span class="v">${rels.length}</span><span class="s">atividades no mês</span></div><div class="kpi"><span class="l">Terceiros</span><span class="v">${new Set(rels.map(r=>r.cnpj||r.empresa)).size}</span><span class="s">empresas com LPU</span></div><div class="kpi"><span class="l">Ticket médio</span><span class="v">${rels.length?brl0(tot/rels.length):'—'}</span><span class="s">por relatório</span></div></div>
+       const rr=terRes(r);return `<tr class="click" data-l="${k}"><td><input type="checkbox" data-sel="${k}" ${r.sel?'checked':''} aria-label="Selecionar"></td>${relRow(rr,`<td>${ja?'<span class="pill" style="color:var(--fg-3)">Já lançado</span>':r.aviso?`<span class="pill" style="color:var(--warn)">Conferir</span><div class="hint">${esc(r.aviso)}</div>`:'<span class="pill" style="color:var(--good)">Novo</span>'}${r.ia?'<div class="hint">lido por IA: confira os valores</div>':''}${r.formato==='antigo'?'<div class="hint">formato antigo · mês pela REF.</div>':''}
+         <div style="display:grid;gap:4px;margin-top:4px"><select data-lt="${k}" aria-label="Terceiro" style="font-size:12px"><option value="">${r.terc?'— pelo CNPJ do PDF —':rr.tercId?'pelo CNPJ: '+esc(rr.empresa):'— escolher terceiro —'}</option>${tercList().map(t=>`<option value="${esc(t.id)}" ${t.id===r.terc?'selected':''}>${esc(t.nome)}</option>`).join('')}</select>
+         ${r.conta?'':`<select data-lc="${k}" aria-label="Conta contábil" style="font-size:12px"><option value="">${rr.conta?'conta do terceiro: '+rr.conta:'— conta contábil —'}</option>${CONTAS.map(a=>`<option value="${a.c}">${a.c} · ${esc(a.n)}</option>`).join('')}</select>`}
+         ${r.formato==='antigo'?`<select data-lm="${k}" aria-label="Mês" style="font-size:12px">${mesesOpts([r.mes]).map(x=>`<option value="${x}" ${x===r.mes?'selected':''}>${mesLabel(x)}</option>`).join('')}</select>`:''}</div></td>`)}</tr>${op?`<tr><td></td><td colspan="8">${itensTable(r)}</td></tr>`:''}`;}).join('')}</tbody></table></div>`:''}</div>
+   <div class="kpis"><div class="kpi"><span class="l">LPU lida em ${mesCurto(m)}</span><span class="v">${brl0(tot)}</span><span class="s">soma dos relatórios salvos</span></div><div class="kpi"><span class="l">Relatórios</span><span class="v">${rels.length}</span><span class="s">atividades no mês</span></div><div class="kpi"><span class="l">Terceiros</span><span class="v">${new Set(rels.map(r=>r.tercId||r.cnpj||r.empresa)).size}</span><span class="s">empresas com LPU</span></div><div class="kpi"><span class="l">Ticket médio</span><span class="v">${rels.length?brl0(tot/rels.length):'—'}</span><span class="s">por relatório</span></div></div>
    ${rels.length?`<div class="grid3"><div class="card"><h3>Por terceiro</h3><div id="lpu-r1"></div></div><div class="card"><h3>Por conta contábil</h3><div id="lpu-r2"></div></div><div class="card"><h3>Por cidade</h3><div id="lpu-r3"></div></div></div>`:''}
    <div class="card"><div class="row"><h3 class="grow" style="margin:0">Atividades salvas em ${mesLabel(m)}</h3><button class="btn" id="lpu-xls-m" ${rels.length?'':'disabled'}>Baixar Excel das atividades</button></div>
      ${rels.length?`<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Data</th><th>Empresa / técnicos</th><th>Cidade</th><th>Cliente / POP</th><th>Conta</th><th class="r">Itens</th><th class="r">Total</th><th></th></tr></thead><tbody>${rels.map(r=>`<tr class="click" data-r="${r.id}">${relRow(r,`<td class="r">${ro?'':`<button class="btn small" data-del="${r.id}">Excluir</button>`}</td>`)}</tr>${F.opened.has(r.id)?`<tr><td colspan="8">${itensTable(r)}</td></tr>`:''}`).join('')}</tbody></table></div>`:`<p class="hint" style="margin:10px 0 0">Nenhum relatório salvo neste mês. Envie os PDFs acima; o mês de cada relatório vem da "Data Relatório".</p>`}</div>`;
   const dz=$('#lpu-drop'),fi=$('#lpu-file');const go=fs=>{const l=[...fs].filter(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name));if(!l.length){toast('Envie arquivos PDF');return;}lerPdfsLpu(l);};
   fi.onchange=()=>{go(fi.files);fi.value='';};dz.ondragover=e=>{e.preventDefault();dz.classList.add('over');};dz.ondragleave=()=>dz.classList.remove('over');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');go(e.dataTransfer.files);};
   box.querySelectorAll('[data-sel]').forEach(c=>{c.onclick=e=>e.stopPropagation();c.onchange=()=>{L[+c.dataset.sel].sel=c.checked;};});
+  box.querySelectorAll('[data-lt],[data-lc],[data-lm]').forEach(c=>{c.onclick=e=>e.stopPropagation();c.onchange=()=>{const k=+(c.dataset.lt||c.dataset.lc||c.dataset.lm);const r=L[k];
+    if(c.dataset.lt!=null)r.terc=c.value;else if(c.dataset.lc!=null)r.conta=c.value;else{r.mes=c.value;}r.aviso=lpuAviso(r);renderFin();};});
+  const ts=$('#lpu-terc'),tc=$('#lpu-conta');if(ts)ts.onchange=()=>{F.tsel=ts.value;const t=((F.cfg.terceiros||{}).lista||{})[ts.value];if(t&&t.conta&&!F.tcon){F.tcon=t.conta;}renderFin();};if(tc)tc.onchange=()=>{F.tcon=tc.value;};
   box.querySelectorAll('tr[data-l]').forEach(tr=>tr.onclick=()=>{const k='l'+L[+tr.dataset.l].id;F.opened.has(k)?F.opened.delete(k):F.opened.add(k);renderFin();});
   box.querySelectorAll('tr[data-r]').forEach(tr=>tr.onclick=()=>{const k=tr.dataset.r;F.opened.has(k)?F.opened.delete(k):F.opened.add(k);renderFin();});
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async e=>{e.stopPropagation();if(noEdit())return;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='Confirmar exclusão';b.style.color='var(--critical)';setTimeout(()=>{b.dataset.ok='';b.textContent='Excluir';b.style.color='';},4000);return;}
     try{await db.doc('lpu/'+b.dataset.del).delete();toast('Relatório excluído');}catch(er){handleWriteErr(er);}});
   if(L.length){$('#lpu-clear').onclick=()=>{F.lidos=[];F.lendo='';renderFin();};
-    $('#lpu-xls-l').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(L),`lpu_leitura_${hoje()}.xlsx`);};
+    $('#lpu-xls-l').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(L.map(terRes)),`lpu_leitura_${hoje()}.xlsx`);};
     $('#lpu-save').onclick=async()=>{if(noEdit())return;const sel=L.filter(r=>r.sel);if(!sel.length){toast('Selecione ao menos um relatório');return;}const b=$('#lpu-save');b.disabled=true;let ok=0;
-      for(const r of sel){const {id,sel:_s,aviso,ia,...d}=r;try{await db.doc('lpu/'+id).set({...d,lidoEm:new Date().toISOString(),...(myId?{lidoPor:myId}:{}),...(ia?{ia:true}:{})});ok++;}catch(e){handleWriteErr(e);break;}}
+      const pend=sel.filter(r=>{const x=terRes(r);return !x.empresa||!x.conta;});if(pend.length){toast(`${pend.length} relatório(s) sem terceiro ou conta: escolha antes de salvar`);b.disabled=false;return;}
+      for(const r0 of sel){const r={...r0,conta:terRes(r0).conta};const {id,sel:_s,aviso,ia,...d}=r;try{await db.doc('lpu/'+id).set({...d,lidoEm:new Date().toISOString(),...(myId?{lidoPor:myId}:{}),...(ia?{ia:true}:{})});ok++;}catch(e){handleWriteErr(e);break;}}
       const ms=[...new Set(sel.map(r=>r.mes))].sort();F.lidos=L.filter(r=>!r.sel);if(ok){toast(`${ok} relatório(s) salvo(s)`);if(!ms.includes(F.mes))F.mes=ms[ms.length-1];}renderFin();};}
   if(rels.length){fbars('#lpu-r1',rank(r=>r.empresa),'--s1',brl0);fbars('#lpu-r2',rank(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),'--s4',brl0);fbars('#lpu-r3',rank(r=>r.cidade),'--s3',brl0);
     $('#lpu-xls-m').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(rels),`lpu_atividades_${m}.xlsx`);};}}
+
+/* ---------- aba: terceiros e técnicos ---------- */
+function finTerc(box){const ro=canWrite===false?'disabled':'';const L=tercList();const f=F.tform;
+  const brutos={};Object.values(F.lpu).forEach(r=>{if(terMatch(r))return;const k=dig(r.cnpj)||norm(r.empresa);if(!k)return;const b=brutos[k]=brutos[k]||{empresa:r.empresa,cnpj:r.cnpj,tec:new Set(),n:0,tot:0};b.n++;b.tot+=r.total||0;if(r.tecnicos)b.tec.add(r.tecnicos);});
+  const sem=Object.values(brutos).sort((a,b)=>b.tot-a.tot);
+  box.innerHTML=`<div class="row"><div class="grow"><p class="hint" style="margin:0">Cadastre cada terceiro com o nome certo e o CNPJ. Nas LPUs, o painel troca o nome que vier escrito pelo nome cadastrado, buscando pelo CNPJ da empresa ou do técnico. Vale também para o que já foi lançado.</p></div><button class="btn primary" id="tc-new" ${ro}>+ Cadastrar terceiro</button></div>
+   ${f?tercFormHtml(f):''}
+   ${L.length?L.map(t=>{const n=Object.values(F.lpu).filter(r=>terRes(r).tercId===t.id);const a=CONTA[t.conta];
+     return `<div class="card"><div class="row"><div class="grow"><b style="font:600 17px var(--f-display)">${esc(t.nome)}</b> <span class="mono hint">${esc(t.cnpj||'sem CNPJ')}</span><div class="hint">${a?`Conta padrão: ${a.c} · ${esc(a.n)} · `:''}${n.length} relatório(s) de LPU · ${brl0(n.reduce((s,r)=>s+(r.total||0),0))}${(t.apelidos||[]).length?' · também aparece como: '+t.apelidos.map(esc).join(', '):''}</div></div>
+       ${ro?'':`<button class="btn small" data-te="${esc(t.id)}">Editar</button><button class="btn small" data-td="${esc(t.id)}">Remover</button>`}</div>
+       ${(t.tecnicos||[]).length?`<div class="tablewrap" style="margin-top:8px"><table class="mini"><thead><tr><th>Técnico</th><th>CNPJ / CPF</th></tr></thead><tbody>${t.tecnicos.map(x=>`<tr><td>${esc(x.nome)}</td><td class="mono">${esc(x.cnpj||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint" style="margin:6px 0 0">Nenhum técnico cadastrado.</p>'}</div>`;}).join(''):'<div class="card"><p class="hint" style="margin:0">Nenhum terceiro cadastrado ainda.</p></div>'}
+   ${sem.length?`<div class="card"><h3>Nomes nas LPUs sem cadastro</h3><p class="hint" style="margin:0 0 8px">Como aparecem nos relatórios já salvos. Clique em "Cadastrar" para registrar com o nome certo.</p><div class="tablewrap"><table><thead><tr><th>Como veio na LPU</th><th>CNPJ</th><th>Técnicos</th><th class="r">Relatórios</th><th class="r">Total</th><th></th></tr></thead><tbody>
+     ${sem.map((b,i)=>`<tr><td>${esc(b.empresa||'—')}</td><td class="mono">${esc(b.cnpj||'—')}</td><td class="hint">${esc([...b.tec].join(', '))}</td><td class="r num">${b.n}</td><td class="r num">${brl0(b.tot)}</td><td class="r">${ro?'':`<button class="btn small" data-tb="${i}">Cadastrar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+  const open=o=>{F.tform=o;renderFin();const el=$('#tc-form');if(el)el.scrollIntoView({block:'center'});};
+  $('#tc-new').onclick=()=>{if(noEdit())return;open({tecnicos:[]});};
+  box.querySelectorAll('[data-te]').forEach(b=>b.onclick=()=>open({...L.find(t=>t.id===b.dataset.te)}));
+  box.querySelectorAll('[data-tb]').forEach(b=>b.onclick=()=>{const x=sem[+b.dataset.tb];open({nome:'',cnpj:x.cnpj||'',apelidos:x.empresa?[x.empresa]:[],tecnicos:[...x.tec].map(n=>({nome:n,cnpj:''}))});});
+  box.querySelectorAll('[data-td]').forEach(b=>b.onclick=async()=>{if(noEdit())return;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='Confirmar';b.style.color='var(--critical)';setTimeout(()=>{b.dataset.ok='';b.textContent='Remover';b.style.color='';},4000);return;}
+    try{await finWrite('terceiros',{lista:{[b.dataset.td]:null}});toast('Terceiro removido');}catch(e){handleWriteErr(e);}});
+  if(f)tercFormWire();}
+const tecRow=x=>`<div class="row trow" style="margin-bottom:6px"><input type="text" class="grow" data-x="nome" placeholder="Nome correto do técnico" value="${esc(x.nome||'')}"><input type="text" data-x="cnpj" style="width:190px" placeholder="CNPJ ou CPF (opcional)" value="${esc(x.cnpj||'')}"><button class="btn small" data-x="rm" type="button" aria-label="Remover técnico">✕</button></div>`;
+function tercFormHtml(t){return `<div class="card" id="tc-form" style="border-color:var(--focus)"><h3>${t.id?'Editar terceiro':'Novo terceiro'}</h3>
+  <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><label class="fld"><span>Nome correto</span><input type="text" data-k="nome" value="${esc(t.nome||'')}" placeholder="Ex.: Dois Irmãos Telecom"></label>
+   <label class="fld"><span>CNPJ da empresa</span><input type="text" data-k="cnpj" value="${esc(t.cnpj||'')}" placeholder="00.000.000/0000-00"></label>
+   <label class="fld"><span>Conta contábil padrão</span><select data-k="conta"><option value="">—</option>${CONTAS.map(a=>`<option value="${a.c}" ${a.c===t.conta?'selected':''}>${a.c} · ${esc(a.n)}</option>`).join('')}</select></label></div>
+  <label class="fld" style="margin-top:10px"><span>Outros nomes como aparece nas LPUs (um por linha, opcional)</span><textarea data-k="apelidos" rows="2">${esc((t.apelidos||[]).join('\n'))}</textarea></label>
+  <h4 class="sub" style="margin:14px 0 6px">Técnicos</h4><p class="hint" style="margin:0 0 6px">Quando o técnico tem CNPJ próprio (MEI) e ele aparece na LPU, o relatório é ligado a este terceiro e o nome do técnico sai daqui.</p>
+  <div id="tc-tecs">${(t.tecnicos||[]).map(tecRow).join('')}</div><button class="btn small" id="tc-addt" type="button">+ Técnico</button>
+  <div class="row" style="margin-top:14px"><button class="btn primary" id="tc-ok">Salvar terceiro</button><button class="btn" id="tc-cancel">Cancelar</button><span class="err" id="tc-err"></span></div></div>`;}
+function tercFormWire(){const fm=$('#tc-form');const wire=()=>fm.querySelectorAll('[data-x="rm"]').forEach(b=>b.onclick=()=>b.closest('.trow').remove());wire();
+  $('#tc-addt').onclick=()=>{$('#tc-tecs').insertAdjacentHTML('beforeend',tecRow({}));wire();};$('#tc-cancel').onclick=()=>{F.tform=null;renderFin();};
+  $('#tc-ok').onclick=async()=>{if(noEdit())return;const g=k=>fm.querySelector(`[data-k="${k}"]`).value.trim();const nome=g('nome');if(!nome){$('#tc-err').textContent='Informe o nome correto.';return;}
+    const cn=g('cnpj');const outro=tercList().find(t=>t.id!==F.tform.id&&dig(cn)&&dig(t.cnpj)===dig(cn));if(outro){$('#tc-err').textContent='Esse CNPJ já está cadastrado em '+outro.nome+'.';return;}
+    const tecnicos=[...fm.querySelectorAll('.trow')].map(r=>({nome:r.querySelector('[data-x="nome"]').value.trim(),cnpj:r.querySelector('[data-x="cnpj"]').value.trim()})).filter(x=>x.nome);
+    const id=F.tform.id||norm(nome).replace(/ /g,'-').slice(0,40)+'-'+Date.now().toString(36);
+    try{await finWrite('terceiros',{lista:{[id]:{nome,cnpj:cn,conta:g('conta'),apelidos:g('apelidos').split('\n').map(x=>x.trim()).filter(Boolean),tecnicos}}});F.tform=null;toast('Terceiro salvo');renderFin();}catch(e){handleWriteErr(e);}};}
 
 /* ---------- aba: contratos fora da LPU ---------- */
 const TIPO_CTR={fixo:'Valor fixo',meta:'Meta de atividades',avulso:'Valor informado no mês',pontual:'Atividade avulsa (terceiro pontual)'};
@@ -2623,7 +2699,7 @@ function combImportWire(){const fi=$('#cb-file');if(fi)fi.onchange=async()=>{con
 function dashComb(box){const ms=combMeses();if(!ms.length){box.innerHTML='<div class="card"><p class="hint" style="margin:0">Sem dados de combustível.</p></div>';return;}if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];
   box.innerHTML=`${combKpis(F.cmes)}<div class="card"><h3>Gasto mensal de combustível por setor</h3>${combLegend()}<div class="chart" id="dc-chart" style="overflow-x:auto"></div></div><div><button class="btn primary" id="dc-open">Abrir Combustível</button></div>`;
   box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{const k=b.dataset.cat;F.chide.has(k)?F.chide.delete(k):F.chide.add(k);renderDash();});combChart('#dc-chart',ms.slice(-24));$('#dc-open').onclick=()=>showView('comb');}
-function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
+function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{},terceiros:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
   db.collection('lpu').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.lpu=o;finRefresh();},()=>{});
   db.collection('combustivel').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.comb=o;finRefresh();},()=>{});}
 
