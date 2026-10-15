@@ -2221,7 +2221,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={sub:'geral',ano:null,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2233,7 +2233,7 @@ function typing(box){const a=document.activeElement;return a&&box.contains(a)&&/
 function finRefresh(){if(curView==='fin'){const b=$('#fin-body');if(typing(b)){b.addEventListener('focusout',()=>setTimeout(renderFin,0),{once:true});}else renderFin();}
   else if(curView==='comb'){const b=$('#comb-body');if(typing(b)){b.addEventListener('focusout',()=>setTimeout(renderComb,0),{once:true});}else renderComb();}
   else if(curView==='dash'&&(S.dseg==='fin'||S.dseg==='comb'))renderDash();}
-function mesesOpts(extra){const set=new Set(extra||[]);const d=new Date();for(let i=0;i<14;i++){set.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d.setMonth(d.getMonth()-1,1);}return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().reverse();}
+function mesesOpts(extra){const set=new Set(extra||[]);const d=new Date();d.setMonth(d.getMonth()+1,1);for(let i=0;i<15;i++){set.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d.setMonth(d.getMonth()-1,1);}return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().reverse();}
 function xlsSheet(aoa,widths,money){const ws=XLSX.utils.aoa_to_sheet(aoa);if(widths)ws['!cols']=widths.map(w=>({wch:w}));
   if(money){const rg=XLSX.utils.decode_range(ws['!ref']);for(let r=1;r<=rg.e.r;r++)for(const c of money){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell&&cell.t==='n')cell.z='#,##0.00';}}return ws;}
 async function xlsSave(wb,nome){const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});avisa(await salvar(nome,new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),'Excel gerado','Não foi possível gerar o Excel');}
@@ -2241,15 +2241,18 @@ async function xlsSave(wb,nome){const out=XLSX.write(wb,{bookType:'xlsx',type:'a
 function fbars(sel,entries,tone,fmt){const el=$(sel);if(!el)return;const mx=Math.max(1,...entries.map(e=>e[1]));el.innerHTML=entries.length?entries.map(([k,v])=>`<div class="hbar fb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div><div class="b" style="width:${Math.max(1.5,v/mx*100)}%;background:var(${tone})"></div></div><span class="n">${fmt?fmt(v):fmtN(v)}</span></div>`).join(''):'<p class="hint">Sem dados no período.</p>';}
 /* ---------- contratos fora da LPU ---------- */
 const contratos=()=>Object.entries(F.cfg.contratos.lista||{}).filter(([,c])=>c).map(([id,c])=>({...c,id})).sort((a,b)=>(a.ordem||0)-(b.ordem||0)||a.nome.localeCompare(b.nome));
+const semMes=c=>!c.mes&&!Object.keys(c.monthly||{}).length;
+const ctrNoMes=(c,m)=>c.mes?c.mes===m:(c.monthly&&c.monthly[m])?true:semMes(c)&&m===mesAtual();
+const contratosMes=m=>contratos().filter(c=>ctrNoMes(c,m));
 const ctrMes=(c,m)=>({atividades:0,checked:[],bonusManual:{},excedente:0,closed:false,...((c.monthly||{})[m]||{})});
 function ctrCalc(c,m){const md=ctrMes(c,m);const meta=c.meta||{qtd:0,unit:0};
-  const base=c.tipo==='meta'?(meta.qtd||0)*(meta.unit||0):c.tipo==='fixo'?(c.fixo||0):0;
+  const base=c.tipo==='meta'?(meta.qtd||0)*(meta.unit||0):(c.tipo==='fixo'||c.tipo==='pontual')?(c.fixo||0):0;
   const bonus=(c.bonus||[]).reduce((s,b)=>s+(b.manual?(md.bonusManual[b.id]||0):md.checked.includes(b.id)?(b.value||0):0),0);
   const extraQ=c.tipo==='meta'?Math.max(0,(md.atividades||0)-(meta.qtd||0)):0;
   const exc=c.tipo==='meta'?extraQ*(c.exc||meta.unit||0):(md.excedente||0);
   const falta=c.tipo==='meta'?Math.max(0,(meta.qtd||0)-(md.atividades||0)):0;
   return {md,base,bonus,exc,extraQ,falta,total:base+bonus+exc};}
-const ctrConta=(code,m)=>contratos().filter(c=>c.conta===code).reduce((s,c)=>s+ctrCalc(c,m).total,0);
+const ctrConta=(code,m)=>contratosMes(m).filter(c=>c.conta===code).reduce((s,c)=>s+ctrCalc(c,m).total,0);
 
 /* ---------- LPU lida dos PDFs ---------- */
 const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({...r,id})).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
@@ -2271,7 +2274,7 @@ function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
     <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
     <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end">${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
   if($('#fin-mes'))$('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
-  if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;renderFin();};
+  if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderFin();};
   box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{F.sub=b.dataset.sub;renderFin();});
   $('#fin-xls').onclick=()=>ger?finExcelGeral():finExcelMes(m);
   ({geral:finGeral,conta:finConta,lpu:finLpu,ctr:finCtr})[F.sub]($('#fin-sub'),m);}
@@ -2281,11 +2284,12 @@ function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
 function finMesesDados(){const b=F.cfg.budget||{};const set=new Set();Object.values(F.lpu).forEach(r=>r&&r.mes&&set.add(r.mes));
   Object.keys(b.geral||{}).forEach(m=>{const v=b.geral[m];if(v!=null&&v!=='')set.add(m);});
   ['contas','base'].forEach(k=>Object.values(b[k]||{}).forEach(o=>Object.entries(o||{}).forEach(([m,v])=>{if(v!=null&&v!==''&&Number(v)!==0)set.add(m);})));
-  contratos().forEach(c=>Object.keys(c.monthly||{}).forEach(m=>set.add(m)));
+  contratos().forEach(c=>{if(c.mes)set.add(c.mes);Object.keys(c.monthly||{}).forEach(m=>set.add(m));});
   return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort();}
 function finAnos(){const a=[...new Set(finMesesDados().map(m=>m.slice(0,4)))];const y=String(new Date().getFullYear());if(!a.includes(y))a.push(y);return a.sort().reverse();}
 function finAno(){const a=finAnos();if(!F.ano||!a.includes(F.ano))F.ano=a.find(y=>finMesesDados().some(m=>m.startsWith(y)))||a[0];return F.ano;}
-function finGeralDados(ano){const ms=finMesesDados().filter(m=>m.startsWith(ano));const bud=F.cfg.budget.contas||{};
+const finMesesAno=ano=>finMesesDados().filter(m=>m.startsWith(ano));
+function finGeralDados(ano){const all=finMesesAno(ano);const ms=F.gsel&&F.gsel.size?all.filter(m=>F.gsel.has(m)):all;const bud=F.cfg.budget.contas||{};
   const rows=CONTAS.map(a=>({a,v:ms.map(m=>({e:execConta(a.c,m).total,b:Number((bud[a.c]||{})[m])||0}))}));
   const tot=ms.map(m=>finTotais(m));const S=k=>tot.reduce((s,t)=>s+t[k].e,0),B=k=>tot.reduce((s,t)=>s+t[k].b,0);
   const SB=k=>tot.reduce((s,t)=>s+(t[k].b>0?t[k].e:0),0),NB=k=>tot.filter(t=>t[k].b>0).length;
@@ -2320,13 +2324,16 @@ function finGeralTabela(G){if(!G.ms.length)return '';const c=v=>v?brl0(v):'—';
   return `<div class="card" style="padding:0;overflow-x:auto"><table class="mini" style="min-width:${300+G.ms.length*96}px;width:100%"><thead><tr><th>Conta contábil</th>${G.ms.map(m=>`<th class="r">${mesCurto(m)}</th>`).join('')}<th class="r">Total</th></tr></thead>
    <tbody>${linhas||`<tr><td colspan="${G.ms.length+2}" class="hint">Sem executado lançado.</td></tr>`}</tbody>
    <tfoot style="border-top:2px solid var(--line-2)">${tr('CAPEX',t=>c(t?t.capex.e:A.capex.e))}${tr('OPEX',t=>c(t?t.opex.e:A.opex.e))}${tr('Executado total',t=>c(t?t.all.e:A.all.e),'background:var(--bg)')}${tr('Budget',t=>c(t?t.all.b:A.all.b))}${tr('Saldo',saldo)}${tr('% do budget usado',t=>{const e=t?t.all.e:A.all.eb,b=t?t.all.b:A.all.b;return b>0?Math.round(e/b*100)+'%':'—';})}</tfoot></table></div>`;}
-function finGeralTop(G,ano){const A=G.acc;const n=G.ms.length;const acima=G.tot.filter(t=>t.all.b>0&&t.all.e>t.all.b).length;
-  return `<div class="fstats">${accCard('Executado acumulado '+ano+' · '+n+' '+(n===1?'mês':'meses'),A.all,n,'')}${accCard('CAPEX acumulado',A.capex,n,'capex')}${accCard('OPEX acumulado',A.opex,n,'opex')}</div>
-   <div class="card"><h3>Executado × budget por mês · ${ano}</h3>${geralLegend}<div class="chart" id="fg-chart" style="overflow-x:auto"></div><p class="hint" style="margin:6px 0 0">${n?`Média mensal executada: ${brl(A.all.e/n)}.`:''}${acima?` ${acima} ${acima===1?'mês ficou':'meses ficaram'} acima do budget.`:''} Clique numa barra para abrir o mês.</p></div>`;}
+function mesesChips(ano){const all=finMesesAno(ano);if(all.length<2)return '';const sel=F.gsel&&F.gsel.size?F.gsel:null;
+  return `<div class="row" style="gap:6px;align-items:center"><span class="hint">Meses:</span><div class="seg" role="group" aria-label="Meses da visão geral" style="flex-wrap:wrap"><button data-gm="*" aria-pressed="${!sel}">Todos</button>${all.map(m=>`<button data-gm="${m}" aria-pressed="${!!(sel&&sel.has(m))}">${mesCurto(m)}</button>`).join('')}</div><span class="hint">${sel?'clique em outros meses para somar; em "Todos" para voltar ao ano':'clique num mês para ver só ele'}</span></div>`;}
+function mesesChipsWire(root,rer){root.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{const m=b.dataset.gm;if(m==='*')F.gsel=null;else{if(!F.gsel)F.gsel=new Set();F.gsel.has(m)?F.gsel.delete(m):F.gsel.add(m);if(!F.gsel.size)F.gsel=null;}rer();});}
+function finGeralTop(G,ano){const A=G.acc;const n=G.ms.length;const lab=F.gsel&&F.gsel.size?(n===1?mesLabel(G.ms[0]):n+' meses selecionados'):ano+' · '+n+' '+(n===1?'mês':'meses');const acima=G.tot.filter(t=>t.all.b>0&&t.all.e>t.all.b).length;
+  return `<div class="fstats">${accCard('Executado · '+lab,A.all,n,'')}${accCard('CAPEX acumulado',A.capex,n,'capex')}${accCard('OPEX acumulado',A.opex,n,'opex')}</div>
+   <div class="card"><h3>Executado × budget por mês · ${F.gsel&&F.gsel.size?esc(lab):ano}</h3>${geralLegend}<div class="chart" id="fg-chart" style="overflow-x:auto"></div><p class="hint" style="margin:6px 0 0">${n?`Média mensal executada: ${brl(A.all.e/n)}.`:''}${acima?` ${acima} ${acima===1?'mês ficou':'meses ficaram'} acima do budget.`:''} Clique numa barra para abrir o mês.</p></div>`;}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${finGeralTop(G,ano)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}`;
-  finGeralChart('#fg-chart',G);}
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}`;
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);}
 function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
   const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
   const A=[H,...G.rows.map(r=>[r.a.c+' · '+r.a.n,r.a.g.toUpperCase(),...r.v.map(x=>x.e),sum(r.v.map(x=>x.e))]),[],
@@ -2334,14 +2341,16 @@ function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visua
   const money=Array.from({length:n+1},(_,i)=>i+2);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[44,10,...G.ms.map(()=>14),16],money),'Executado por mês');
   const bud=F.cfg.budget.contas||{};const B=[H,...CONTAS.map(a=>{const v=G.ms.map(m=>Number((bud[a.c]||{})[m])||0);return [a.c+' · '+a.n,a.g.toUpperCase(),...v,sum(v)];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(B,[44,10,...G.ms.map(()=>14),16],money),'Budget por mês');
-  xlsSave(wb,`financeiro_om_geral_${ano}.xlsx`);}
+  xlsSave(wb,`financeiro_om_${F.gsel&&F.gsel.size?G.ms.join('_'):'geral_'+ano}.xlsx`);}
 /* ---------- aba: conta contábil ---------- */
 function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=canWrite===false?'disabled':'';
+  const bm=c=>((bud.contas||{})[c]||{})[m];const semBud=!CONTAS.some(a=>Number(bm(a.c))>0);const bopen=F.bedit||(semBud&&canWrite!==false&&F.bedit!==0);
   const list=CONTAS.filter(a=>F.grp==='all'||a.g===F.grp);
   box.innerHTML=`<div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
    <div class="row"><label class="fld" style="width:190px"><span>Budget geral do mês (R$)</span><input type="text" inputmode="decimal" id="fin-bg" value="${(bud.geral||{})[m]??''}" placeholder="soma das contas" ${ro}></label>
-     <button class="btn small" id="fin-bg-save" style="align-self:end" ${ro}>Salvar</button><div class="grow"></div>
+     <button class="btn small" id="fin-bg-save" style="align-self:end" ${ro}>Salvar</button><button class="btn ${semBud?'primary':''}" id="fin-bedit" style="align-self:end" aria-expanded="${bopen}">${bopen?'Fechar edição do budget':'Editar budget de '+mesCurto(m)+' por conta'}</button><div class="grow"></div>
      <div class="seg" style="align-self:end">${[['all','Todas'],['capex','CAPEX'],['opex','OPEX']].map(([k,l])=>`<button data-grp="${k}" aria-pressed="${F.grp===k}">${l}</button>`).join('')}</div></div>
+   ${bopen?budgetEditor(m,ro):''}
    <div class="card" style="padding:0">${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);
      return `<div class="acc" data-c="${a.c}"><button class="acch" aria-expanded="${op}"><span class="car">▸</span><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b>${a.c} · ${esc(a.n)}</b>${com?'<span class="gt com">comentário</span>':''}
         <span class="accv"><span>LPU ${brl(x.lpu)}${x.ctr>0?' + contratos '+brl(x.ctr):''}</span><b>${brl(x.total)}</b>${b>0?`<span>/ ${brl(b)}</span>`:''}</span></button>${bbar(b,x.total)}
@@ -2353,10 +2362,24 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
           <div class="row" style="margin-top:10px"><button class="btn primary small" data-save ${ro}>Salvar</button><span class="hint">O executado soma a LPU com os contratos fora da LPU vinculados a esta conta.</span></div></div>`:''}</div>`;}).join('')}</div>
    <p class="hint">Barra verde = saldo que ainda cabe no budget; se o executado passar do budget, a barra fica vermelha. O valor de LPU de cada conta vem dos PDFs lidos na aba "LPU · leitura de PDF"; quando o campo "LPU pela planilha de acompanhamento" está preenchido, ele é usado no lugar (é o caso dos meses de abril a setembro de 2026, lançados antes do leitor existir).</p>`;
   box.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>{F.grp=b.dataset.grp;renderFin();});
+  $('#fin-bedit').onclick=()=>{F.bedit=bopen?0:true;renderFin();};if(bopen)budgetWire(m);
   $('#fin-bg-save').onclick=async()=>{if(noEdit())return;const v=$('#fin-bg').value.trim();try{await finWrite('budget',{geral:{[m]:v===''?null:num(v)}});toast('Budget geral salvo');}catch(e){handleWriteErr(e);}};
   box.querySelectorAll('.acc').forEach(el=>{const c=el.dataset.c;el.querySelector('.acch').onclick=()=>{F.open.has(c)?F.open.delete(c):F.open.add(c);renderFin();};
     const sv=el.querySelector('[data-save]');if(sv)sv.onclick=async()=>{if(noEdit())return;const g=k=>el.querySelector(`[data-k="${k}"]`).value.trim();
       try{await finWrite('budget',{contas:{[c]:{[m]:num(g('b'))}},base:{[c]:{[m]:g('base')===''?null:num(g('base'))}},coment:{[c]:{[m]:g('com')}}});toast('Conta salva');}catch(e){handleWriteErr(e);}};});}
+
+function budgetEditor(m,ro){const bud=F.cfg.budget;const pm=mesAnt(m);const v=(c,mm)=>((bud.contas||{})[c]||{})[mm];
+  return `<div class="card" id="bud-ed" style="border-color:var(--focus)"><div class="row" style="margin-bottom:8px"><div class="grow"><h3 style="margin:0">Budget de ${mesLabel(m)} por conta contábil</h3><p class="hint" style="margin:4px 0 0">Ajuste no início do mês e salve. Cada mês guarda o seu valor; mudar ${mesCurto(m)} não altera ${mesCurto(pm)}.</p></div>
+    <button class="btn small" id="bud-copy" ${ro}>Copiar valores de ${mesCurto(pm)}</button></div>
+   <div class="tablewrap"><table><thead><tr><th>Conta contábil</th><th class="r">Budget ${mesCurto(pm)}</th><th class="r" style="min-width:150px">Budget ${mesCurto(m)} (R$)</th><th class="r">Executado ${mesCurto(m)}</th></tr></thead><tbody>
+   ${CONTAS.map(a=>`<tr><td><span class="gt ${a.g}">${a.g.toUpperCase()}</span> ${a.c} · ${esc(a.n)}</td><td class="r num hint">${Number(v(a.c,pm))>0?brl(Number(v(a.c,pm))):'—'}</td>
+     <td class="r"><input type="text" inputmode="decimal" data-bud="${a.c}" data-prev="${Number(v(a.c,pm))||''}" value="${Number(v(a.c,m))>0?Number(v(a.c,m)).toLocaleString('pt-BR',{minimumFractionDigits:2}):''}" style="width:140px;text-align:right" ${ro}></td><td class="r num">${brl(execConta(a.c,m).total)}</td></tr>`).join('')}
+   </tbody><tfoot><tr><td><b>Total das contas</b></td><td class="r num hint">${brl(CONTAS.reduce((s,a)=>s+(Number(v(a.c,pm))||0),0))}</td><td class="r num"><b id="bud-tot">—</b></td><td></td></tr></tfoot></table></div>
+   <div class="row" style="margin-top:10px"><button class="btn primary" id="bud-save" ${ro}>Salvar budget de ${mesCurto(m)}</button><span class="hint" id="bud-msg"></span></div></div>`;}
+function budgetWire(m){const ins=[...document.querySelectorAll('[data-bud]')];const tot=()=>{$('#bud-tot').textContent=brl(ins.reduce((s,i)=>s+num(i.value),0));};ins.forEach(i=>i.oninput=tot);tot();
+  $('#bud-copy').onclick=()=>{let n=0;ins.forEach(i=>{if(i.dataset.prev){i.value=Number(i.dataset.prev).toLocaleString('pt-BR',{minimumFractionDigits:2});n++;}});tot();$('#bud-msg').textContent=n?'Valores copiados. Ajuste o que mudou e clique em Salvar.':'O mês anterior não tem budget lançado.';};
+  $('#bud-save').onclick=async()=>{if(noEdit())return;const contas={};ins.forEach(i=>{const v=i.value.trim();contas[i.dataset.bud]={[m]:v===''?null:num(v)};});
+    try{await finWrite('budget',{contas});F.bedit=0;toast('Budget de '+mesLabel(m)+' salvo');}catch(e){handleWriteErr(e);}};}
 
 /* ---------- aba: LPU (leitura de PDF) ---------- */
 function pnum(s){s=String(s||'').replace(/[^\d.,-]/g,'');const ld=s.lastIndexOf('.'),lc=s.lastIndexOf(',');
@@ -2450,43 +2473,56 @@ function finLpu(box,m){const rels=lpuMes(m);const tot=rels.reduce((s,r)=>s+(r.to
     $('#lpu-xls-m').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(rels),`lpu_atividades_${m}.xlsx`);};}}
 
 /* ---------- aba: contratos fora da LPU ---------- */
-const TIPO_CTR={fixo:'Valor fixo mensal',meta:'Meta de atividades',avulso:'Valor lançado a cada mês'};
-function ctrFormHtml(c){const b=c.bonus||[];return `<div class="card" id="ctr-form" style="border-color:var(--focus)"><h3>${c.id?'Editar contrato':'Novo contrato fora da LPU'}</h3>
+const TIPO_CTR={fixo:'Valor fixo',meta:'Meta de atividades',avulso:'Valor informado no mês',pontual:'Atividade avulsa (terceiro pontual)'};
+function ctrFormHtml(c){const b=c.bonus||[];return `<div class="card" id="ctr-form" style="border-color:var(--focus)"><h3>${c.id?'Editar contrato':'Novo contrato fora da LPU'} · ${mesLabel(c.mes||F.mes)}</h3><p class="hint" style="margin:0 0 10px">Fica lançado só neste mês. No mês seguinte, use "Repetir do mês anterior" para lançar de novo.</p>
    <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))"><label class="fld"><span>Terceiro / contrato</span><input type="text" data-k="nome" value="${esc(c.nome||'')}" placeholder="Ex.: VAL NOTURNO"></label>
     <label class="fld"><span>Conta contábil</span><select data-k="conta">${CONTAS.map(a=>`<option value="${a.c}" ${a.c===c.conta?'selected':''}>${a.c} · ${esc(a.n)}</option>`).join('')}</select></label>
     <label class="fld"><span>Tipo</span><select data-k="tipo">${Object.entries(TIPO_CTR).map(([k,l])=>`<option value="${k}" ${k===c.tipo?'selected':''}>${l}</option>`).join('')}</select></label></div>
    <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-top:10px">
-    <label class="fld" data-t="fixo"><span>Valor fixo mensal (R$)</span><input type="text" inputmode="decimal" data-k="fixo" value="${c.fixo||''}"></label>
+    <label class="fld" data-t="fixo pontual"><span>Valor (R$)</span><input type="text" inputmode="decimal" data-k="fixo" value="${c.fixo||''}"></label>
+    <label class="fld" data-t="pontual" style="grid-column:span 2"><span>O que foi feito (opcional)</span><input type="text" data-k="desc" value="${esc(c.desc||'')}" placeholder="Ex.: lançamento de 2 km de cabo em Sumaré"></label>
     <label class="fld" data-t="meta"><span>Meta de atividades no mês</span><input type="text" inputmode="decimal" data-k="qtd" value="${(c.meta||{}).qtd||''}"></label>
     <label class="fld" data-t="meta"><span>Valor por atividade na meta (R$)</span><input type="text" inputmode="decimal" data-k="unit" value="${(c.meta||{}).unit||''}"></label>
     <label class="fld" data-t="meta"><span>Valor por atividade excedente (R$)</span><input type="text" inputmode="decimal" data-k="exc" value="${c.exc||''}"></label></div>
    <h4 class="sub" style="margin:14px 0 6px">Bonificações (opcional)</h4><div id="ctr-bonus">${b.map(x=>bonusRow(x)).join('')}</div>
    <button class="btn small" id="ctr-addb" type="button">+ Bonificação</button>
    <div class="row" style="margin-top:14px"><button class="btn primary" id="ctr-ok">Salvar contrato</button><button class="btn" id="ctr-cancel">Cancelar</button><span class="err" id="ctr-err"></span></div></div>`;}
+const mesAnt=m=>{const d=new Date(+m.slice(0,4),+m.slice(5)-2,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+function repetirLista(m){const pm=mesAnt(m);const ja=contratosMes(m);return contratosMes(pm).filter(c=>!semMes(c)&&!ja.some(x=>x.origem===c.id||(x.nome===c.nome&&x.conta===c.conta)));}
+function repetirHtml(m){const L=repetirLista(m);if(!L.length)return '';const pm=mesAnt(m);
+  return `<div class="card"><h3>Repetir do mês anterior (${mesCurto(pm)})</h3><p class="hint" style="margin:0 0 8px">Marque o que continua em ${mesLabel(m)}. Os valores vêm iguais e podem ser ajustados depois; atividades avulsas já vêm desmarcadas.</p>
+   ${L.map(c=>`<label class="brk"><input type="checkbox" data-rep="${esc(c.id)}" ${c.tipo==='pontual'?'':'checked'}><span class="grow">${esc(c.nome)} <span class="hint">· ${TIPO_CTR[c.tipo]||''} · ${c.conta}</span></span><span class="mono">${brl(ctrCalc(c,pm).base)}</span></label>`).join('')}
+   <div class="row" style="margin-top:8px"><button class="btn primary small" id="rep-go">Lançar marcados em ${mesCurto(m)}</button></div></div>`;}
+function repetirWire(m){const b=$('#rep-go');if(!b)return;b.onclick=async()=>{if(noEdit())return;const ids=[...document.querySelectorAll('[data-rep]:checked')].map(i=>i.dataset.rep);if(!ids.length){toast('Marque pelo menos um contrato');return;}
+  const all=contratos();const patch={};ids.forEach((id,i)=>{const c=all.find(x=>x.id===id);if(!c)return;const {id:_,monthly,mes,...rest}=c;patch[norm(c.nome).replace(/ /g,'-').slice(0,40)+'-'+Date.now().toString(36)+i]={...rest,mes:m,origem:c.id,ordem:(c.ordem||0)};});
+  b.disabled=true;try{await finWrite('contratos',{lista:patch});toast(ids.length+' contrato(s) lançado(s) em '+mesLabel(m));}catch(e){handleWriteErr(e);b.disabled=false;}};}
 const bonusRow=x=>`<div class="row brow" data-id="${esc(x.id||'')}" style="margin-bottom:6px"><input type="text" class="grow" data-b="label" placeholder="Descrição da bonificação" value="${esc(x.label||'')}"><input type="text" inputmode="decimal" data-b="value" style="width:120px" placeholder="Valor (R$)" value="${x.manual?'':(x.value||'')}"><label class="hint" style="display:flex;gap:4px;align-items:center"><input type="checkbox" data-b="manual" ${x.manual?'checked':''}>valor informado a cada mês</label><button class="btn small" data-b="rm" type="button" aria-label="Remover bonificação">✕</button></div>`;
-function finCtr(box,m){const list=contratos();const ro=canWrite===false?'disabled':'';const tot=list.reduce((s,c)=>s+ctrCalc(c,m).total,0);
-  box.innerHTML=`<div class="row"><div class="kpi" style="min-width:220px"><span class="l">Contratos fora da LPU · ${mesCurto(m)}</span><span class="v">${brl0(tot)}</span><span class="s">${list.length} contrato(s); entram no executado da conta vinculada</span></div><div class="grow"></div><button class="btn primary" id="ctr-new" ${ro}>+ Incluir contrato</button></div>
-   ${F.cform?ctrFormHtml(F.cform):''}
+function finCtr(box,m){const list=contratosMes(m);const orfaos=contratos().filter(c=>semMes(c)&&m!==mesAtual());const ro=canWrite===false?'disabled':'';const tot=list.reduce((s,c)=>s+ctrCalc(c,m).total,0);
+  box.innerHTML=`<div class="row"><div class="kpi" style="min-width:220px"><span class="l">Contratos fora da LPU · ${mesCurto(m)}</span><span class="v">${brl0(tot)}</span><span class="s">${list.length} contrato(s) lançado(s) neste mês; entram no executado da conta vinculada</span></div><div class="grow"></div><button class="btn primary" id="ctr-new" ${ro}>+ Incluir contrato</button></div>
+   ${F.cform?ctrFormHtml(F.cform):''}${ro?'':repetirHtml(m)}
+   ${orfaos.length?`<div class="callout">${orfaos.length} contrato(s) sem mês definido (lançados antes desta mudança), contando só em ${mesLabel(mesAtual())}: ${orfaos.map(c=>`<b>${esc(c.nome)}</b> <button class="btn small" data-fix="${esc(c.id)}" ${ro}>Mover para ${mesCurto(m)}</button>`).join(' ')}</div>`:''}
    ${list.length?list.map(c=>{const x=ctrCalc(c,m),md=x.md,cl=md.closed?'disabled':ro;const a=CONTA[c.conta];
      return `<div class="card ctr" data-id="${esc(c.id)}"><div class="row"><div class="grow"><b style="font:600 17px var(--f-display)">${esc(c.nome)}</b> ${md.closed?'<span class="gt ok">mês fechado</span>':''}<div class="hint">${TIPO_CTR[c.tipo]||''} · ${a?`<span class="gt ${a.g}">${a.g.toUpperCase()}</span> ${a.c} · ${esc(a.n)}`:'sem conta'}</div></div>
         ${ro?'':`<button class="btn small" data-a="close">${md.closed?'Reabrir mês':'Fechar mês'}</button><button class="btn small" data-a="edit">Editar</button><button class="btn small" data-a="del">Remover</button>`}</div>
-       ${c.tipo==='meta'?`<p class="hint" style="margin:8px 0">Meta: ${c.meta.qtd} atividades × ${brl(c.meta.unit)} = ${brl(x.base)}</p>
+       ${semMes(c)?`<div class="callout" style="margin-top:8px">Sem mês definido (lançado antes desta mudança). <button class="btn small" data-fix="${esc(c.id)}" ${ro}>Deixar só em ${mesCurto(m)}</button></div>`:''}
+       ${c.tipo==='pontual'?`<p class="hint" style="margin:8px 0">Atividade avulsa: ${brl(x.base)}${c.desc?' · '+esc(c.desc):''}</p>`:c.tipo==='meta'?`<p class="hint" style="margin:8px 0">Meta: ${c.meta.qtd} atividades × ${brl(c.meta.unit)} = ${brl(x.base)}</p>
           <label class="inline-edit" style="grid-template-columns:auto 120px"><span>Atividades realizadas em ${mesCurto(m)}</span><input type="text" inputmode="decimal" data-f="atividades" value="${md.atividades||''}" ${cl}></label>
           ${x.extraQ>0?`<div class="bbc" style="color:var(--warn)">+${x.extraQ} excedente(s) × ${brl(c.exc||c.meta.unit)} = ${brl(x.exc)}</div>`:''}${x.falta>0&&md.atividades>0?`<div class="callout" style="margin-top:6px">${x.falta} atividade(s) abaixo da meta, equivalente a ${brl(x.falta*c.meta.unit)} improdutivos (informativo, não desconta do total).</div>`:''}`
         :c.tipo==='fixo'?`<p class="hint" style="margin:8px 0">Valor fixo mensal: ${brl(x.base)}</p><label class="inline-edit" style="grid-template-columns:auto 140px"><span>Valor excedente em ${mesCurto(m)} (R$)</span><input type="text" inputmode="decimal" data-f="excedente" value="${md.excedente||''}" ${cl}></label>`
         :`<label class="inline-edit" style="grid-template-columns:auto 140px;margin-top:10px"><span>Valor de ${mesCurto(m)} (R$)</span><input type="text" inputmode="decimal" data-f="excedente" value="${md.excedente||''}" ${cl}></label>`}
        ${(c.bonus||[]).map(b=>b.manual?`<label class="brk"><input type="text" inputmode="decimal" data-bm="${esc(b.id)}" value="${md.bonusManual[b.id]||''}" style="width:110px" placeholder="R$" ${cl}><span class="grow">${esc(b.label)} <span class="hint">(valor recebido no mês)</span></span><span class="mono">${brl(md.bonusManual[b.id]||0)}</span></label>`
           :`<label class="brk"><input type="checkbox" data-bc="${esc(b.id)}" ${md.checked.includes(b.id)?'checked':''} ${cl}><span class="grow">${esc(b.label)}</span><span class="mono">${brl(b.value)}</span></label>`).join('')}
-       <div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="grow hint">Total ${esc(c.nome)} em ${mesCurto(m)}</span><b class="mono" style="font-size:17px">${brl(x.total)}</b></div></div>`;}).join(''):'<div class="card"><p class="hint" style="margin:0">Nenhum contrato cadastrado. Use "+ Incluir contrato" para lançar manualmente o que é pago fora da LPU.</p></div>'}`;
-  $('#ctr-new').onclick=()=>{if(noEdit())return;F.cform={tipo:'fixo',conta:'0008',bonus:[]};renderFin();$('#ctr-form').scrollIntoView({block:'center'});};
-  if(F.cform){const fm=$('#ctr-form');const tp=fm.querySelector('[data-k="tipo"]');const vis=()=>fm.querySelectorAll('[data-t]').forEach(e=>e.hidden=e.dataset.t!==tp.value);vis();tp.onchange=vis;
+       <div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="grow hint">Total ${esc(c.nome)} em ${mesCurto(m)}</span><b class="mono" style="font-size:17px">${brl(x.total)}</b></div></div>`;}).join(''):`<div class="card"><p class="hint" style="margin:0">Nenhum contrato lançado em ${mesLabel(m)}. Use "+ Incluir contrato" ou "Repetir do mês anterior".</p></div>`}`;
+  repetirWire(m);box.querySelectorAll('[data-fix]').forEach(b=>b.onclick=async()=>{if(noEdit())return;try{await finWrite('contratos',{lista:{[b.dataset.fix]:{mes:m}}});toast('Contrato fixado em '+mesLabel(m));}catch(e){handleWriteErr(e);}});
+  $('#ctr-new').onclick=()=>{if(noEdit())return;F.cform={tipo:'fixo',conta:'0008',bonus:[],mes:m};renderFin();$('#ctr-form').scrollIntoView({block:'center'});};
+  if(F.cform){const fm=$('#ctr-form');const tp=fm.querySelector('[data-k="tipo"]');const vis=()=>fm.querySelectorAll('[data-t]').forEach(e=>e.hidden=!e.dataset.t.split(' ').includes(tp.value));vis();tp.onchange=vis;
     const wire=()=>fm.querySelectorAll('[data-b="rm"]').forEach(b=>b.onclick=()=>b.closest('.brow').remove());wire();
     $('#ctr-addb').onclick=()=>{$('#ctr-bonus').insertAdjacentHTML('beforeend',bonusRow({}));wire();};
     $('#ctr-cancel').onclick=()=>{F.cform=null;renderFin();};
     $('#ctr-ok').onclick=async()=>{if(noEdit())return;const g=k=>fm.querySelector(`[data-k="${k}"]`).value.trim();const nome=g('nome');if(!nome){$('#ctr-err').textContent='Informe o nome do terceiro ou contrato.';return;}
       const bonus=[...fm.querySelectorAll('.brow')].map((r,i)=>{const man=r.querySelector('[data-b="manual"]').checked;const o={id:r.dataset.id||('b'+Date.now().toString(36)+i),label:r.querySelector('[data-b="label"]').value.trim()};if(man)o.manual=true;else o.value=num(r.querySelector('[data-b="value"]').value);return o;}).filter(b=>b.label);
       const id=F.cform.id||norm(nome).replace(/ /g,'-').slice(0,40)+'-'+Date.now().toString(36);
-      const d={nome,conta:g('conta'),tipo:tp.value,fixo:num(g('fixo')),meta:{qtd:num(g('qtd')),unit:num(g('unit'))},exc:num(g('exc')),bonus,...(F.cform.id?{}:{ordem:Date.now()})};
+      const d={nome,conta:g('conta'),tipo:tp.value,fixo:num(g('fixo')),desc:g('desc'),meta:{qtd:num(g('qtd')),unit:num(g('unit'))},exc:num(g('exc')),bonus,mes:F.cform.mes||m,...(F.cform.id?{}:{ordem:Date.now()})};
       try{await finWrite('contratos',{lista:{[id]:d}});F.cform=null;toast('Contrato salvo');renderFin();}catch(e){handleWriteErr(e);}};}
   box.querySelectorAll('.ctr').forEach(el=>{const c=list.find(x=>x.id===el.dataset.id);const sv=async(patch,msg)=>{if(noEdit())return;try{await finWrite('contratos',{lista:{[c.id]:{monthly:{[m]:patch}}}});if(msg)toast(msg);}catch(e){handleWriteErr(e);}};
     el.querySelectorAll('[data-f]').forEach(i=>i.onchange=()=>sv({[i.dataset.f]:num(i.value)},'Salvo'));
@@ -2499,18 +2535,18 @@ function finCtr(box,m){const list=contratos();const ro=canWrite===false?'disable
 function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const bud=F.cfg.budget;const wb=XLSX.utils.book_new();const t=finTotais(m);
   const C=[['Conta contábil','Natureza','LPU (R$)','Contratos fora da LPU (R$)','Executado (R$)','Budget (R$)','Saldo (R$)','Comentário'],...CONTAS.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;return [a.c+' · '+a.n,a.g.toUpperCase(),x.lpu,x.ctr,x.total,b,b-x.total,((bud.coment||{})[a.c]||{})[m]||''];}),[],['Total','',null,null,t.all.e,t.all.b,t.all.b-t.all.e,'']];
   XLSX.utils.book_append_sheet(wb,xlsSheet(C,[44,10,14,22,14,14,14,40],[2,3,4,5,6]),'Conta contábil');
-  const K=[['Contrato','Tipo','Conta contábil','Base (R$)','Bonificações (R$)','Excedente (R$)','Total (R$)','Atividades','Mês fechado'],...contratos().map(c=>{const x=ctrCalc(c,m);return [c.nome,TIPO_CTR[c.tipo]||'',c.conta,x.base,x.bonus,x.exc,x.total,c.tipo==='meta'?(x.md.atividades||0):'',x.md.closed?'sim':'não'];})];
+  const K=[['Contrato','Tipo','Conta contábil','Base (R$)','Bonificações (R$)','Excedente (R$)','Total (R$)','Atividades','Mês fechado'],...contratosMes(m).map(c=>{const x=ctrCalc(c,m);return [c.nome,TIPO_CTR[c.tipo]||'',c.conta,x.base,x.bonus,x.exc,x.total,c.tipo==='meta'?(x.md.atividades||0):'',x.md.closed?'sim':'não'];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,14,14,16,14,14,11,12],[3,4,5,6]),'Contratos fora da LPU');
   const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');}
   xlsSave(wb,`financeiro_om_${m}.xlsx`);}
 function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${finGeralTop(G,ano)}
+  box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano)}
    <div class="row" style="margin-top:6px"><h2 style="margin:0;font-size:17px">Mês de ${mesLabel(m)}</h2></div><div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
    <div class="grid2"><div class="card"><h3>Executado por conta contábil · ${mesLabel(m)}</h3><div id="df-1"></div></div><div class="card"><h3>Contratos fora da LPU · ${mesLabel(m)}</h3><div id="df-2"></div><p class="hint">${rels.length} relatório(s) de LPU lido(s) no mês.</p></div></div>
    <div><button class="btn primary" id="df-open">Abrir Financeiro</button></div>`;
   fbars('#df-1',CONTAS.map(a=>[a.c+' · '+a.n,execConta(a.c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s1',brl0);
-  fbars('#df-2',contratos().map(c=>[c.nome,ctrCalc(c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s4',brl0);$('#df-open').onclick=()=>{F.sub='geral';showView('fin');};
-  finGeralChart('#fg-chart',G);if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;renderDash();};}
+  fbars('#df-2',contratosMes(m).map(c=>[c.nome,ctrCalc(c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s4',brl0);$('#df-open').onclick=()=>{F.sub='geral';showView('fin');};
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderDash);if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderDash();};}
 
 /* ================= COMBUSTÍVEL ================= */
 const combMeses=()=>Object.keys(F.comb).sort();
