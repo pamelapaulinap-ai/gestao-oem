@@ -741,6 +741,12 @@ table.ovt td,table.ovt th{white-space:nowrap}.num.neg,b.neg{color:var(--critical
 .card.ov-foot{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:12px 16px}.ov-foot div{display:grid;gap:2px}.ov-foot .l{font-size:12px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.04em}.ov-foot b{font:700 18px var(--f-display);font-variant-numeric:tabular-nums}
 .tg-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;padding:10px 12px;background:var(--surface-2);border-radius:8px}.tg-row div{display:grid;gap:2px}.tg-row .l{font-size:11.5px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.04em}.tg-row b{font:700 15px var(--f-display);font-variant-numeric:tabular-nums}
 tr.dup td{background:color-mix(in srgb,var(--critical) 6%,transparent)}
+table.it th.sortable{cursor:pointer;user-select:none;white-space:nowrap}table.it th.sortable:hover{color:var(--fg)}
+table.it td{vertical-align:middle}table.it tr.open>td{background:var(--surface-2)}tr.it-det>td{background:var(--surface-2);padding-top:0}
+table.it td:nth-child(2){min-width:300px;max-width:440px}table.it tbody tr[data-ik]:hover>td{background:var(--surface-2)}
+.it-tot{min-width:150px}.it-tot>span:last-child{display:block}.it-tot .it-bar{display:block;height:4px;border-radius:2px;background:var(--ink);margin:0 0 0 auto;min-width:2px}
+.it-tot{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:3px}
+.num.warnv{color:var(--serious);font-weight:600}.it-wrap{max-height:70vh;overflow:auto}.it-wrap thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 .rq-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px}
 .rq-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}.rq-bar i{display:block;height:100%}
 .rq-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-2)}.rq-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -2229,7 +2235,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={ip:'ano',iq:'',it:'',isort:'vezes',idir:-1,iopen:null,lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2300,12 +2306,12 @@ function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
   const ger=F.sub==='geral';
   const tcx=F.sub==='terc';box.innerHTML=`<div class="row">${tcx?'':ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
     <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contratos fora da LPU'],['terc','Terceiros e técnicos']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
-    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end" ${tcx?'hidden':''}>${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
+    <div class="grow"></div><button class="btn" id="fin-xls" style="align-self:end" ${tcx||F.sub==='itens'?'hidden':''}>${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
   if($('#fin-mes'))$('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
   if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderFin();};
   box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{F.sub=b.dataset.sub;renderFin();});
   $('#fin-xls').onclick=()=>ger?finExcelGeral():finExcelMes(m);
-  ({geral:finGeral,conta:finConta,lpu:finLpu,ctr:finCtr,terc:finTerc})[F.sub]($('#fin-sub'),m);}
+  ({geral:finGeral,conta:finConta,lpu:finLpuComItens,ctr:finCtr,terc:finTerc})[F.sub]($('#fin-sub'),m);}
 
 
 /* ---------- visão geral (todos os meses) ---------- */
@@ -2569,6 +2575,54 @@ function finLpu(box,m){const relsAll=F.lall?Object.entries(F.lpu).map(([id,r])=>
     if($('#ls-mov'))$('#ls-mov').onclick=async()=>{if(noEdit())return;const ids=sel();const mm=$('#ls-mes').value;const b=$('#ls-mov');b.disabled=true;let ok=0;
       for(const id of ids){try{await db.doc('lpu/'+id).update({mes:mm});ok++;}catch(e){handleWriteErr(e);break;}}F.lsel.clear();toast(`${ok} relatório(s) movido(s) para ${mesLabel(mm)}`);renderFin();};
     const fq=$('#lpu-fq');fq.oninput=()=>{clearTimeout(fq._t);fq._t=setTimeout(()=>{F.lq=fq.value;renderFin();const e=$('#lpu-fq');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}},300);};}}
+
+/* ---------- itens da LPU (dentro da aba LPU) ---------- */
+function finLpuComItens(box,m){finLpu(box,m);const d=document.createElement('div');d.id='lpu-itens';d.style.cssText='display:grid;gap:14px;margin-top:6px';box.appendChild(d);finItens(d,m);}
+const med=a=>{if(!a.length)return 0;const b=a.slice().sort((x,y)=>x-y);const h=b.length>>1;return b.length%2?b[h]:(b[h-1]+b[h])/2;};
+function itensDados(m){const ano=m.slice(0,4);const rels=Object.entries(F.lpu).map(([id,r])=>({...terRes(r),id})).filter(r=>F.ip==='tudo'||(F.ip==='mes'?r.mes===m:(r.mes||'').startsWith(ano)));
+  const terOpts=[...new Set(rels.map(r=>r.empresa).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const rs=rels.filter(r=>!F.it||r.empresa===F.it);const G=new Map();
+  for(const r of rs)for(const i of r.itens||[]){const k=(i.c||'').toUpperCase()||norm(i.d);if(!k)continue;let g=G.get(k);
+    if(!g){g={c:(i.c||'').toUpperCase(),ds:new Map(),un:new Map(),vezes:0,qtd:0,tot:0,us:[],prest:new Map(),rels:new Set()};G.set(k,g);}
+    g.ds.set(i.d,(g.ds.get(i.d)||0)+1);if(i.m)g.un.set(i.m,(g.un.get(i.m)||0)+1);g.vezes++;g.qtd+=Number(i.q)||0;g.tot+=Number(i.t)||0;if(i.u)g.us.push(Number(i.u));g.rels.add(r.id);
+    const pk=r.empresa||'(sem terceiro)';const p=g.prest.get(pk)||{n:pk,vezes:0,qtd:0,tot:0,us:[]};p.vezes++;p.qtd+=Number(i.q)||0;p.tot+=Number(i.t)||0;if(i.u)p.us.push(Number(i.u));g.prest.set(pk,p);}
+  const top=mp=>[...mp.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+  const L=[...G.values()].map(g=>({c:g.c,d:top(g.ds),un:top(g.un),vezes:g.vezes,qtd:g.qtd,tot:g.tot,med:med(g.us),min:g.us.length?Math.min(...g.us):0,max:g.us.length?Math.max(...g.us):0,np:g.prest.size,nrel:g.rels.size,prest:[...g.prest.values()].map(p=>({...p,med:med(p.us),min:p.us.length?Math.min(...p.us):0,max:p.us.length?Math.max(...p.us):0})).sort((a,b)=>b.tot-a.tot)}));
+  return {rels:rs,terOpts,L};}
+function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.includes(F.it))F.it='';
+  const q=norm(F.iq);const rows=L.filter(x=>!q||norm(x.c+' '+x.d).includes(q));
+  const key={codigo:x=>x.c,desc:x=>norm(x.d),un:x=>x.un,vezes:x=>x.vezes,qtd:x=>x.qtd,med:x=>x.med,min:x=>x.min,max:x=>x.max,tot:x=>x.tot,np:x=>x.np}[F.isort]||(x=>x.vezes);
+  rows.sort((a,b)=>{const A=key(a),B=key(b);return (A<B?-1:A>B?1:0)*F.idir||b.vezes-a.vezes;});
+  const totV=L.reduce((s,x)=>s+x.tot,0),totN=L.reduce((s,x)=>s+x.vezes,0);const mxT=Math.max(1,...L.map(x=>x.tot));
+  const div=L.filter(x=>x.max-x.min>0.005).length;const topV=L.slice().sort((a,b)=>b.tot-a.tot)[0];
+  const nf=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const per=F.ip==='mes'?mesLabel(m):F.ip==='ano'?'ano de '+m.slice(0,4):'todo o histórico';
+  const th=(k,l,r)=>`<th class="${r?'r':''} sortable" data-is="${k}" aria-sort="${F.isort===k?(F.idir>0?'ascending':'descending'):'none'}">${l}${F.isort===k?(F.idir>0?' ↑':' ↓'):''}</th>`;
+  box.innerHTML=`<h2 style="margin:8px 0 0;font-size:19px">Itens da LPU</h2><div class="row" style="gap:10px"><div class="seg" role="group" aria-label="Período">${[['mes','Só '+mesCurto(m)],['ano','Ano '+m.slice(0,4)],['tudo','Tudo']].map(([k,l])=>`<button data-ip="${k}" aria-pressed="${F.ip===k}">${l}</button>`).join('')}</div>
+     <select id="it-ter" aria-label="Terceiro"><option value="">Todos os terceiros</option>${terOpts.map(t=>`<option ${t===F.it?'selected':''}>${esc(t)}</option>`).join('')}</select>
+     <input type="search" id="it-q" class="grow" value="${esc(F.iq)}" placeholder="Buscar descrição ou código"><button class="btn" id="it-xls" ${rows.length?'':'disabled'}>Baixar Excel</button></div>
+   <div class="ov-kpis"><div class="card ov"><span class="v">${fmtN(L.length)}</span><span class="l">Itens diferentes · ${esc(per)}</span></div>
+     <div class="card ov"><span class="v">${fmtN(totN)}</span><span class="l">Vezes lançados em ${fmtN(rels.length)} relatório(s)</span></div>
+     <div class="card ov"><span class="v">${brl(totV)}</span><span class="l">Valor total dos itens</span></div>
+     <div class="card ov ${div?'bad':''}"><span class="v" style="${div?'':'color:var(--fg)'}">${fmtN(div)}</span><span class="l">Itens com preço diferente entre lançamentos</span></div></div>
+   <div class="card"><div class="row" style="margin-bottom:6px"><div class="grow"><h3 style="margin:0">Descrições mais usadas</h3><p class="hint" style="margin:4px 0 0">Itens da LPU somados de todos os relatórios do período${F.it?' de '+esc(F.it):''}. Clique no cabeçalho para ordenar e numa linha para ver por prestador.${topV?` Maior valor: <b>${esc(topV.c)} · ${esc(topV.d)}</b> (${brl(topV.tot)}).`:''}</p></div></div>
+   ${rows.length?`<div class="tablewrap it-wrap"><table class="it"><thead><tr>${th('codigo','Código')}${th('desc','Descrição')}${th('un','Un.')}${th('vezes','Vezes usado',1)}${th('qtd','Quantidade',1)}${th('med','V. unit (mediana)',1)}${th('min','Mín.',1)}${th('max','Máx.',1)}${th('tot','Valor total',1)}${th('np','Prestadores',1)}</tr></thead><tbody>
+    ${rows.map(x=>{const op=F.iopen===x.c+'|'+x.d;const dv=x.max-x.min>0.005;
+      return `<tr class="click${op?' open':''}" data-ik="${esc(x.c+'|'+x.d)}"><td class="mono hint">${esc(x.c)}</td><td>${esc(x.d)}</td><td class="hint">${esc(x.un)}</td><td class="r num"><b>${fmtN(x.vezes)}</b></td><td class="r num">${nf(x.qtd)}</td><td class="r num">${brl(x.med)}</td><td class="r num">${brl(x.min)}</td><td class="r num ${dv?'warnv':''}" ${dv?'title="Preço variou entre lançamentos"':''}>${brl(x.max)}</td>
+        <td class="r num"><div class="it-tot"><span class="it-bar" style="width:${Math.max(2,x.tot/mxT*100).toFixed(1)}%"></span><span>${brl(x.tot)}</span></div></td><td class="r num">${x.np}</td></tr>
+        ${op?`<tr class="it-det"><td></td><td colspan="9"><table class="mini" style="width:100%"><thead><tr><th>Prestador</th><th class="r">Vezes</th><th class="r">Quantidade</th><th class="r">V. unit (mediana)</th><th class="r">Mín.</th><th class="r">Máx.</th><th class="r">Valor total</th></tr></thead><tbody>${x.prest.map(p=>`<tr><td>${esc(p.n)}</td><td class="r num">${fmtN(p.vezes)}</td><td class="r num">${nf(p.qtd)}</td><td class="r num">${brl(p.med)}</td><td class="r num">${brl(p.min)}</td><td class="r num">${brl(p.max)}</td><td class="r num"><b>${brl(p.tot)}</b></td></tr>`).join('')}</tbody></table></td></tr>`:''}`;}).join('')}
+   </tbody></table></div>`:`<p class="hint">${L.length?'Nenhum item na busca.':'Nenhuma LPU salva neste período.'}</p>`}</div>`;
+  box.querySelectorAll('[data-ip]').forEach(b=>b.onclick=()=>{F.ip=b.dataset.ip;renderFin();});
+  $('#it-ter').onchange=e=>{F.it=e.target.value;renderFin();};
+  const iq=$('#it-q');iq.oninput=()=>{clearTimeout(iq._t);iq._t=setTimeout(()=>{F.iq=iq.value;renderFin();const e=$('#it-q');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250);};
+  box.querySelectorAll('[data-is]').forEach(h=>h.onclick=()=>{const k=h.dataset.is;if(F.isort===k)F.idir=-F.idir;else{F.isort=k;F.idir=['codigo','desc','un'].includes(k)?1:-1;}renderFin();});
+  box.querySelectorAll('[data-ik]').forEach(tr=>tr.onclick=()=>{F.iopen=F.iopen===tr.dataset.ik?null:tr.dataset.ik;renderFin();});
+  $('#it-xls').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const wb=XLSX.utils.book_new();
+    const A=[['Código','Descrição','Un.','Vezes usado','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total','Prestadores'],...rows.map(x=>[x.c,x.d,x.un,x.vezes,x.qtd,x.med,x.min,x.max,x.tot,x.np])];
+    const ws=xlsSheet(A,[11,60,10,12,12,16,11,11,14,12],[5,6,7,8]);ws['!autofilter']={ref:`A1:J${A.length}`};XLSX.utils.book_append_sheet(wb,ws,'Itens mais usados');
+    const P=[['Código','Descrição','Prestador','Vezes','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total']];rows.forEach(x=>x.prest.forEach(p=>P.push([x.c,x.d,p.n,p.vezes,p.qtd,p.med,p.min,p.max,p.tot])));
+    XLSX.utils.book_append_sheet(wb,xlsSheet(P,[11,50,30,8,12,16,11,11,14],[5,6,7,8]),'Por prestador');
+    xlsSave(wb,`itens_lpu_${F.ip==='mes'?m:F.ip==='ano'?m.slice(0,4):'historico'}.xlsx`);};}
 
 /* ---------- aba: terceiros e técnicos ---------- */
 function tercGastos(t){const por={};const add=(m,k,v)=>{if(!m||!v)return;const o=por[m]=por[m]||{lpu:0,ctr:0};o[k]+=v;};
