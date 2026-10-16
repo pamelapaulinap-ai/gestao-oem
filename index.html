@@ -2394,6 +2394,43 @@ function finGeralTabela(G){if(!G.ms.length)return '';const c=v=>v?brl0(v):'—';
   return `<div class="card" style="padding:0;overflow-x:auto"><table class="mini" style="min-width:${300+G.ms.length*96}px;width:100%"><thead><tr><th>Conta contábil</th>${G.ms.map(m=>`<th class="r">${mesCurto(m)}</th>`).join('')}<th class="r">Total</th></tr></thead>
    <tbody>${linhas||`<tr><td colspan="${G.ms.length+2}" class="hint">Sem executado lançado.</td></tr>`}</tbody>
    <tfoot style="border-top:2px solid var(--line-2)">${tr('CAPEX',t=>c(t?t.capex.e:A.capex.e))}${tr('OPEX',t=>c(t?t.opex.e:A.opex.e))}${tr('Executado total',t=>c(t?t.all.e:A.all.e),'background:var(--bg)')}${tr('Budget',t=>c(t?t.all.b:A.all.b))}${tr('Saldo',saldo)}${tr('% do budget usado',t=>{const e=t?t.all.e:A.all.eb,b=t?t.all.b:A.all.b;return b>0?Math.round(e/b*100)+'%':'—';})}</tfoot></table></div>`;}
+/* ---------- fluxo de caixa: contas a pagar (pelo vencimento) ---------- */
+function cxItens(){const out=[];const tl=Object.fromEntries(tercList().map(t=>[t.id,t]));const g={};
+  Object.values(F.lpu).forEach(r=>{if(!r||!r.mes)return;const x=terRes(r);const k=(x.tercId||'n:'+norm(x.empresa||'sem nome'))+'|'+r.mes;
+    const o=g[k]=g[k]||{tipo:'lpu',terc:x.tercId||'',nome:x.empresa||'Sem terceiro',det:'LPU',comp:r.mes,valor:0,n:0};o.valor+=r.total||0;o.n++;});
+  Object.values(g).forEach(o=>{const lm=o.terc&&tl[o.terc]?((tl[o.terc].lpuMes||{})[o.comp]||{}):{};out.push({...o,det:'LPU · '+o.n+' relatório(s)',venc:lm.venc||'',pago:lm.pago||'',id:o.terc?'L|'+o.terc+'|'+o.comp:''});});
+  finMesesDados().forEach(m=>contratosMes(m).forEach(c=>{const x=ctrCalc(c,m);if(!x.total)return;const t=c.terc&&tl[c.terc];
+    out.push({tipo:'ctr',terc:c.terc||'',nome:t?t.nome:c.nome,det:'Contrato fixo'+(t&&norm(c.nome)!==norm(t.nome)?' · '+c.nome:'')+(c.nf?' · NF '+c.nf:''),comp:m,valor:x.total,venc:c.venc||'',pago:x.md.pago||'',id:'C|'+c.id+'|'+m});}));
+  return out;}
+function cxPatch(id,k,v){const [t,a,m]=id.split('|');return t==='L'?['terceiros',{lista:{[a]:{lpuMes:{[m]:{[k]:v}}}}}]:k==='pago'?['contratos',{lista:{[a]:{monthly:{[m]:{pago:v}}}}}]:['contratos',{lista:{[a]:{venc:v}}}];}
+function finCaixa(ano){const it=cxItens();const hj=hoje(),a7=isoD(addD(new Date(),7)),ma=mesAtual();const ab=it.filter(i=>!i.pago);const S=a=>a.reduce((s,i)=>s+i.valor,0);
+  const vcd=ab.filter(i=>i.venc&&i.venc<hj),px=ab.filter(i=>i.venc&&i.venc>=hj&&i.venc<=a7),noMes=ab.filter(i=>i.venc&&i.venc.slice(0,7)===ma),sem=ab.filter(i=>!i.venc&&i.comp.startsWith(ano));
+  const vis=F.cxAll?it:ab;let ms=[...new Set(vis.filter(i=>i.venc&&i.venc.startsWith(ano)).map(i=>i.venc.slice(0,7)))].sort();if(F.gsel&&F.gsel.size)ms=ms.filter(m=>F.gsel.has(m));
+  const rowsM={};vis.forEach(i=>{if(!i.venc||!ms.includes(i.venc.slice(0,7)))return;const r=rowsM[i.nome]=rowsM[i.nome]||{};const m=i.venc.slice(0,7);r[m]=(r[m]||0)+i.valor;});
+  const nomes=Object.keys(rowsM).sort((a,b)=>a.localeCompare(b));const c=v=>v?brl0(v):'—';const tm=m=>vis.filter(i=>i.venc&&i.venc.slice(0,7)===m);
+  const tab=ms.length?`<div style="overflow-x:auto;margin-top:10px"><table class="mini" style="min-width:${260+ms.length*96}px;width:100%"><thead><tr><th>Terceiro (vencimento em)</th>${ms.map(m=>`<th class="r">${mesCurto(m)}</th>`).join('')}<th class="r">Total</th></tr></thead>
+    <tbody>${nomes.map(n=>`<tr><td>${esc(n)}</td>${ms.map(m=>`<td class="r mono">${c(rowsM[n][m])}</td>`).join('')}<td class="r mono"><b>${c(ms.reduce((s,m)=>s+(rowsM[n][m]||0),0))}</b></td></tr>`).join('')}</tbody>
+    <tfoot style="border-top:2px solid var(--line-2)"><tr style="background:var(--bg)"><td><b>${F.cxAll?'Total do mês':'A pagar no mês'}</b></td>${ms.map(m=>`<td class="r mono"><b>${c(S(tm(m)))}</b></td>`).join('')}<td class="r mono"><b>${c(S(ms.flatMap(tm)))}</b></td></tr>
+    ${F.cxAll?`<tr><td>Já pago</td>${ms.map(m=>`<td class="r mono" style="color:var(--good)">${c(S(tm(m).filter(i=>i.pago)))}</td>`).join('')}<td class="r mono">${c(S(ms.flatMap(tm).filter(i=>i.pago)))}</td></tr><tr><td>Em aberto</td>${ms.map(m=>`<td class="r mono">${c(S(tm(m).filter(i=>!i.pago)))}</td>`).join('')}<td class="r mono">${c(S(ms.flatMap(tm).filter(i=>!i.pago)))}</td></tr>`:''}</tfoot></table></div>`
+    :`<p class="hint" style="margin:10px 0 0">Nenhuma conta com vencimento ${F.gsel&&F.gsel.size?'nos meses escolhidos':'em '+ano}${F.cxAll?'':' em aberto'}.</p>`;
+  const ro=canWrite===false;const lista=[...vcd,...ab.filter(i=>i.venc&&i.venc>=hj&&i.venc<=isoD(addD(new Date(),30)))].sort((a,b)=>a.venc.localeCompare(b.venc));
+  const li=i=>{const st=i.venc&&i.venc<hj?'<span class="gt" style="color:var(--critical);border-color:var(--critical)">vencido</span>':i.venc&&i.venc<=a7?'<span class="gt" style="color:var(--warn);border-color:var(--warn)">até 7 dias</span>':'';
+    return `<tr><td>${i.id&&!ro?`<input type="checkbox" data-cxp="${esc(i.id)}" title="Marcar como pago" ${i.pago?'checked':''}>`:''}</td><td class="mono">${i.id&&!ro?`<input type="date" data-cxv="${esc(i.id)}" value="${esc(i.venc)}" style="font-size:12.5px">`:i.venc?fmtData(i.venc):'—'} ${st}</td><td><b>${esc(i.nome)}</b><div class="hint">${esc(i.det)}</div></td><td>${mesLabel(i.comp)}</td><td class="r mono"><b>${brl(i.valor)}</b></td></tr>`;};
+  const tbl=(a,v)=>`<div class="tablewrap"><table class="mini"><thead><tr><th style="width:30px" title="Pago">Pago</th><th>Vencimento</th><th>Terceiro</th><th>Competência</th><th class="r">Valor</th></tr></thead><tbody>${a.length?a.map(li).join(''):`<tr><td colspan="5" class="hint">${v}</td></tr>`}</tbody></table></div>`;
+  return `<div class="card" id="cx-card"><div class="row" style="align-items:center;gap:8px"><h3 style="margin:0">Fluxo de caixa · contas a pagar</h3><div class="grow"></div><div class="seg">${[[0,'Em aberto'],[1,'Tudo (inclui pago)']].map(([k,l])=>`<button data-cxall="${k}" aria-pressed="${!!F.cxAll===!!k}">${l}</button>`).join('')}</div></div>
+    <p class="hint" style="margin:4px 0 10px">Aqui conta só a <b>data de vencimento</b> (não a competência). Os vencimentos vêm do Contrato fixo e da LPU (por terceiro e mês).</p>
+    <div class="ov-kpis"><div class="card ov ${vcd.length?'bad':''}"><span class="v">${brl(S(vcd))}</span><span class="l">Vencido em aberto · ${vcd.length}</span></div>
+      <div class="card ov"><span class="v">${brl(S(px))}</span><span class="l">Vence nos próximos 7 dias · ${px.length}</span></div>
+      <div class="card ov"><span class="v">${brl(S(noMes))}</span><span class="l">A pagar em ${mesLabel(ma)} · ${noMes.length}</span></div>
+      <div class="card ov"><span class="v">${brl(S(sem))}</span><span class="l">Sem vencimento informado · ${sem.length}</span></div></div>
+    ${tab}
+    <details class="ov-ed" ${F.cxOpen?'open':''} data-cxd="1"><summary>Vencidas e próximas 30 dias (${lista.length})</summary>${tbl(lista,'Nada vencido nem vencendo nos próximos 30 dias.')}</details>
+    ${sem.length?`<details class="ov-ed" ${F.cxSem?'open':''} data-cxd="2"><summary>Sem vencimento informado (${sem.length})</summary><p class="hint" style="margin:6px 0">Preencha a data aqui mesmo. LPU sem terceiro cadastrado não tem onde guardar o vencimento: cadastre o terceiro primeiro.</p>${tbl(sem.sort((a,b)=>a.comp.localeCompare(b.comp)||a.nome.localeCompare(b.nome)),'')}</details>`:''}</div>`;}
+function cxWire(box){box.querySelectorAll('[data-cxall]').forEach(b=>b.onclick=()=>{F.cxAll=b.dataset.cxall==='1';renderFin();});
+  box.querySelectorAll('[data-cxd]').forEach(d=>d.ontoggle=()=>{if(d.dataset.cxd==='1')F.cxOpen=d.open;else F.cxSem=d.open;});
+  const sv=async(id,k,v,msg)=>{if(noEdit())return;const [doc,p]=cxPatch(id,k,v);try{await finWrite(doc,p);toast(msg);}catch(e){handleWriteErr(e);}};
+  box.querySelectorAll('[data-cxp]').forEach(i=>i.onchange=()=>sv(i.dataset.cxp,'pago',i.checked?hoje():null,i.checked?'Marcado como pago':'Voltou para em aberto'));
+  box.querySelectorAll('[data-cxv]').forEach(i=>i.onchange=()=>sv(i.dataset.cxv,'venc',i.value||null,'Vencimento salvo'));}
 function mesesChips(ano){const all=finMesesAno(ano);if(all.length<2)return '';const sel=F.gsel&&F.gsel.size?F.gsel:null;
   const txt=!sel?'Todos os meses':sel.size===1?mesLabel([...sel][0]):[...sel].sort().map(mesCurto).join(', ');
   return `<div class="row" style="gap:8px;align-items:center"><details class="mdrop" ${F.mdOpen?'open':''}><summary><span class="hint">Meses:</span> <b>${esc(txt)}</b> <span aria-hidden="true">▾</span></summary>
@@ -2425,8 +2462,8 @@ function ovWire(){const b=$('#ov-ns');if(!b)return;const sel=$('#ov-nm'),ta=$('#
   b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('budget',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}`;
-  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();}
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}${finCaixa(ano)}`;
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);}
 function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
   const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
   const A=[H,...G.rows.map(r=>[r.a.c+' · '+r.a.n,r.a.g.toUpperCase(),...r.v.map(x=>x.e),sum(r.v.map(x=>x.e))]),[],
