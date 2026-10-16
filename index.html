@@ -2570,9 +2570,12 @@ function lpuAoa(rels){const A=[['Data do relatório','Período','Empresa','CNPJ'
   for(const r of rels){const g=(CONTA[r.conta]||{}).g;A.push([fmtData(r.data),r.de?`${fmtData(r.de)} a ${fmtData(r.ate)}`:'',r.empresa,r.cnpj,r.tecnicos,r.cidade,r.cliente,r.etiqueta,r.conta,r.contaDesc,g?g.toUpperCase():'',r.total,r.arquivo||'']);
     for(const i of r.itens||[])I.push([fmtData(r.data),r.empresa,r.cidade,r.cliente,r.etiqueta,r.conta,i.c,i.d,i.f,i.cl,i.m,i.u,i.q,i.t]);}
   return {A,I};}
+function itensSheet(rels){const L=aggItens(rels).sort((a,b)=>b.tot-a.tot);const tot=L.reduce((s,x)=>s+x.tot,0);
+  const A=[['Código','Descrição','Un.','Vezes usado','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total','% do total','Prestadores','Preço variou?'],...L.map(x=>[x.c,x.d,x.un,x.vezes,x.qtd,x.med,x.min,x.max,x.tot,tot?Math.round(x.tot/tot*1000)/10:0,x.np,x.max-x.min>0.005?'sim':''])];
+  const ws=xlsSheet(A,[11,56,10,12,12,16,11,11,14,10,12,12],[5,6,7,8]);ws['!autofilter']={ref:`A1:L${A.length}`};return ws;}
 function lpuWb(rels){const {A,I}=lpuAoa(rels);const wb=XLSX.utils.book_new();const a=xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]);a['!autofilter']={ref:`A1:M${A.length}`};
   const i=xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]);i['!autofilter']={ref:`A1:N${I.length}`};
-  XLSX.utils.book_append_sheet(wb,a,'Atividades');XLSX.utils.book_append_sheet(wb,i,'Itens');
+  XLSX.utils.book_append_sheet(wb,a,'Atividades');XLSX.utils.book_append_sheet(wb,i,'Itens');if(rels.length)XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens');
   const grp=(key)=>{const o={};rels.forEach(r=>{const k=key(r)||'(não identificado)';o[k]=o[k]||[0,0];o[k][0]++;o[k][1]+=r.total||0;});return Object.entries(o).sort((x,y)=>y[1][1]-x[1][1]).map(([k,v])=>[k,v[0],Math.round(v[1]*100)/100]);};
   const R=[['Por terceiro','Relatórios','Total (R$)'],...grp(r=>r.empresa),[],['Por conta contábil','Relatórios','Total (R$)'],...grp(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||r.contaDesc):''),[],['Total geral',rels.length,Math.round(rels.reduce((s,r)=>s+(r.total||0),0)*100)/100]];
   XLSX.utils.book_append_sheet(wb,xlsSheet(R,[48,12,16],[2]),'Resumo');return wb;}
@@ -2641,15 +2644,17 @@ function finLpu(box,m){const relsAll=F.lall?Object.entries(F.lpu).map(([id,r])=>
 /* ---------- itens da LPU (dentro da aba LPU) ---------- */
 function finLpuComItens(box,m){finLpu(box,m);const d=document.createElement('div');d.id='lpu-itens';d.style.cssText='display:grid;gap:14px;margin-top:6px';box.appendChild(d);finItens(d,m);}
 const med=a=>{if(!a.length)return 0;const b=a.slice().sort((x,y)=>x-y);const h=b.length>>1;return b.length%2?b[h]:(b[h-1]+b[h])/2;};
-function itensDados(m){const ano=m.slice(0,4);const rels=Object.entries(F.lpu).map(([id,r])=>({...terRes(r),id})).filter(r=>F.ip==='tudo'||(F.ip==='mes'?r.mes===m:(r.mes||'').startsWith(ano)));
-  const terOpts=[...new Set(rels.map(r=>r.empresa).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const rs=rels.filter(r=>!F.it||r.empresa===F.it);const G=new Map();
+function aggItens(rs){const G=new Map();
   for(const r of rs)for(const i of r.itens||[]){const k=(i.c||'').toUpperCase()||norm(i.d);if(!k)continue;let g=G.get(k);
     if(!g){g={c:(i.c||'').toUpperCase(),ds:new Map(),un:new Map(),vezes:0,qtd:0,tot:0,us:[],prest:new Map(),rels:new Set()};G.set(k,g);}
     g.ds.set(i.d,(g.ds.get(i.d)||0)+1);if(i.m)g.un.set(i.m,(g.un.get(i.m)||0)+1);g.vezes++;g.qtd+=Number(i.q)||0;g.tot+=Number(i.t)||0;if(i.u)g.us.push(Number(i.u));g.rels.add(r.id);
     const pk=r.empresa||'(sem terceiro)';const p=g.prest.get(pk)||{n:pk,vezes:0,qtd:0,tot:0,us:[]};p.vezes++;p.qtd+=Number(i.q)||0;p.tot+=Number(i.t)||0;if(i.u)p.us.push(Number(i.u));g.prest.set(pk,p);}
   const top=mp=>[...mp.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
   const L=[...G.values()].map(g=>({c:g.c,d:top(g.ds),un:top(g.un),vezes:g.vezes,qtd:g.qtd,tot:g.tot,med:med(g.us),min:g.us.length?Math.min(...g.us):0,max:g.us.length?Math.max(...g.us):0,np:g.prest.size,nrel:g.rels.size,prest:[...g.prest.values()].map(p=>({...p,med:med(p.us),min:p.us.length?Math.min(...p.us):0,max:p.us.length?Math.max(...p.us):0})).sort((a,b)=>b.tot-a.tot)}));
+  return L;}
+function itensDados(m){const ano=m.slice(0,4);const rels=Object.entries(F.lpu).map(([id,r])=>({...terRes(r),id})).filter(r=>F.ip==='tudo'||(F.ip==='mes'?r.mes===m:(r.mes||'').startsWith(ano)));
+  const terOpts=[...new Set(rels.map(r=>r.empresa).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const rs=rels.filter(r=>!F.it||r.empresa===F.it);const L=aggItens(rs);
   return {rels:rs,terOpts,L};}
 function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.includes(F.it))F.it='';
   const q=norm(F.iq);const rows=L.filter(x=>!q||norm(x.c+' '+x.d).includes(q));
@@ -2849,7 +2854,7 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   XLSX.utils.book_append_sheet(wb,xlsSheet(C,[44,10,14,22,14,14,14,40],[2,3,4,5,6]),'Conta contábil');
   const K=[['Contrato','Tipo','Conta contábil','Base (R$)','Bonificações (R$)','Excedente (R$)','Desconto (R$)','Motivo do desconto','Total (R$)','Atividades','Mês fechado'],...contratosMes(m).map(c=>{const x=ctrCalc(c,m);return [c.nome,TIPO_CTR[c.tipo]||'',c.conta,x.base,x.bonus,x.exc,-x.desc,x.md.descMotivo||'',x.total,c.tipo==='meta'?(x.md.atividades||0):'',x.md.closed?'sim':'não'];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,14,14,16,14,14,11,12],[3,4,5,6]),'Contratos fora da LPU');
-  const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');}
+  const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens LPU');}
   xlsSave(wb,`financeiro_om_${m}.xlsx`,{resumo:resumoMes(m)});}
 function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
   box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano,true)}
@@ -3269,7 +3274,8 @@ function resumoMes(m){const t=finTotais(m);const bud=F.cfg.budget;const comp=new
   return {titulo:`Financeiro O&M · ${mesLabel(m)}`,sub:`Executado por conta contábil (LPU + contratos fora da LPU) contra o budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Executado',v:t.all.e},{l:'Budget',v:t.all.b||'—'},{l:t.all.b&&t.all.e>t.all.b?'Acima do budget':'Saldo',v:t.all.b?Math.abs(t.all.b-t.all.e):'—',tone:t.all.b?(t.all.e>t.all.b?'bad':'ok'):''},{l:'% do budget',v:uso==null?'—':uso,fmt:'pct',tone:uso==null?'':uso>1?'bad':'ok'},{l:'CAPEX / OPEX',v:t.all.e?`${Math.round(t.capex.e/t.all.e*100)}% / ${Math.round(t.opex.e/t.all.e*100)}%`:'—'}],
     charts:[ch('Executado × budget por conta contábil',chartHBars(CONTAS.map(a=>({l:a.c+' · '+a.n,v:execConta(a.c,m).total,b:Number(((bud.contas||{})[a.c]||{})[m])||0})),{lw:330})),
-      ch('Quanto cada terceiro recebeu no mês',chartHBars([...comp.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v),{cor:CHC.opex,max:15}))]};}
+      ch('Quanto cada terceiro recebeu no mês',chartHBars([...comp.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v),{cor:CHC.opex,max:15})),
+      ch('Itens da LPU que mais pesam no mês (top 12)',chartHBars(aggItens(lpuMes(m)).sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:12,lw:380,cor:CHC.capex}))]};}
 function resumoGeral(G,ano){const A=G.acc;const L=G.ms.map(mesCurto);
   return {titulo:`Financeiro O&M · ${F.gsel&&F.gsel.size?G.ms.map(mesCurto).join(', '):'ano '+ano}`,sub:`Evolução mensal do executado, CAPEX, OPEX e budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Total executado',v:A.all.e},{l:'Orçado (meses com budget)',v:A.all.b||'—'},{l:'Utilizado do budget',v:A.all.b?A.all.eb/A.all.b:'—',fmt:'pct',tone:A.all.b?(A.all.eb>A.all.b?'bad':'ok'):''},{l:'Média mensal',v:G.ms.length?A.all.e/G.ms.length:0},{l:'CAPEX / OPEX',v:A.all.e?`${Math.round(A.capex.e/A.all.e*100)}% / ${Math.round(A.opex.e/A.all.e*100)}%`:'—'}],
@@ -3279,7 +3285,7 @@ function resumoLpu(rels,titulo){const tot=rels.reduce((s,r)=>s+(r.total||0),0);c
   const ter=by(r=>r.empresa);
   return {titulo:titulo||'Relatórios de LPU',sub:`${rels.length} relatório(s) · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Total da LPU',v:tot},{l:'Relatórios',v:String(rels.length)},{l:'Terceiros',v:String(ter.length)},{l:'Ticket médio',v:rels.length?tot/rels.length:0},{l:'Maior terceiro',v:ter[0]?ter[0].l:'—',nota:ter[0]?brl(ter[0].v)+' · '+Math.round(ter[0].v/tot*100)+'%':''}],
-    charts:[ch('Por terceiro',chartHBars(ter,{max:15})),ch('Por conta contábil',chartHBars(by(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),{cor:CHC.capex,lw:330})),ch('Por cidade',chartHBars(by(r=>r.cidade),{cor:CHC.opex,max:12}))]};}
+    charts:[ch('Por terceiro',chartHBars(ter,{max:15})),ch('Por conta contábil',chartHBars(by(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),{cor:CHC.capex,lw:330})),ch('Por cidade',chartHBars(by(r=>r.cidade),{cor:CHC.opex,max:12})),ch('Itens que mais pesam (top 12)',chartHBars(aggItens(rels).sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:12,lw:380,cor:CHC.capex}))]};}
 function resumoItens(rows,per){const tot=rows.reduce((s,x)=>s+x.tot,0);const div=rows.filter(x=>x.max-x.min>0.005).length;
   return {titulo:'Itens da LPU · '+per,sub:`Itens somados de todos os relatórios do período · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Itens diferentes',v:String(rows.length)},{l:'Vezes lançados',v:String(rows.reduce((s,x)=>s+x.vezes,0))},{l:'Valor total',v:tot},{l:'Preço variou',v:String(div),tone:div?'bad':'',nota:div?'itens com preço diferente entre lançamentos':''}],
