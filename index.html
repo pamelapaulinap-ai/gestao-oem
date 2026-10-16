@@ -2448,6 +2448,7 @@ function mkRel(r,arquivo){const data=r.data||r.ate||r.de||'';const soma=Math.rou
   o.id='r'+hash(r.formato==='antigo'?['antigo',o.etiqueta||arquivo,o.mes,total.toFixed(2)].join('|'):[o.cnpj||o.empresa,o.etiqueta,o.data,o.cliente,total.toFixed(2)].join('|'));
   o.aviso=lpuAviso(o,soma);return o;}
 function lpuAviso(o,soma){const x=terRes(o);if(soma==null)soma=Math.round((o.itens||[]).reduce((s,i)=>s+(i.t||0),0)*100)/100;
+  const ruim=(o.itens||[]).filter(i=>i.u&&i.q&&Math.abs(i.u*i.q-i.t)>0.02);if(ruim.length)return `Conferir ${ruim.map(i=>i.c).join(', ')}: quantidade × valor unitário não bate com o total`;
   return !o.itens.length?'Sem itens: confira o arquivo':Math.abs(soma-o.total)>0.05?`Soma dos itens (${brl(soma)}) diferente do total geral`:!x.empresa?'Escolha o terceiro':!x.conta?'Escolha a conta contábil':(!o.data&&o.formato!=='antigo')?'Data não identificada':'';}
 const MESNOME={JANEIRO:1,FEVEREIRO:2,MARCO:3,'MARÇO':3,ABRIL:4,MAIO:5,JUNHO:6,JULHO:7,AGOSTO:8,SETEMBRO:9,OUTUBRO:10,NOVEMBRO:11,DEZEMBRO:12};
 function parseLpuAntigo(T,arquivo,ano){/* formato antigo: só a tabela de itens, sem cabeçalho de empresa; o mês vem de "REF. ABRIL" */
@@ -2465,6 +2466,38 @@ function parseLpuAntigo(T,arquivo,ano){/* formato antigo: só a tabela de itens,
   const tg=/TOTAL\s+GERAL:?\s*R\$\s*([\d.,]+)/i.exec(T);const ref=/REF\.?\s*([A-ZÇ]+)/i.exec(T);const mn=ref?MESNOME[ref[1].toUpperCase()]:0;
   const rel=(/Relat[óo]rio[_ ]?(\d{5,})/i.exec(arquivo)||[])[1]||'';
   return [mkRel({formato:'antigo',mes:mn?ano+'-'+String(mn).padStart(2,'0'):'',etiqueta:rel,total:tg?pnum(tg[1]):null,itens},arquivo)];}
+/* ---------- PDF que é imagem: reconhecimento de texto (OCR) ---------- */
+function parseLpuOcr(T,arquivo){const L=T.split(/\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);const J=L.join('\n');
+  const g=re=>{const m=re.exec(J);return m?m[1].trim():'';};const fixN=s=>String(s||'').replace(/[Oo]/g,'0').replace(/[lI|]/g,'1');
+  const r={empresa:g(/Empresa\s+(.+?)\s+CNPJ/i),cnpj:fixN(g(/CNPJ\s+([\dOo.\/-]{14,20})/i)),tecnicos:g(/T[ée]cnicos?\s+(.+?)\s+Cidade/i),cidade:g(/Cidade\s+(.+)/i),
+    cliente:g(/Cliente\s*\/\s*POP\s+(.+?)\s+ID\s*\/\s*Etiqueta/i),etiqueta:g(/ID\s*\/\s*Etiqueta\s+(\S+)/i),contaDesc:g(/Descri\S*\s+Cont\S*\s+(.+)/i)};
+  const per=/Per[íi1]odo\s+(\d{2}\/\d{2}\/\d{4})\s+a\s+(\d{2}\/\d{2}\/\d{4})/i.exec(J);if(per){r.de=brDate(per[1]);r.ate=brDate(per[2]);}
+  r.data=brDate(g(/Data\s+Relat\S*\s+(\d{2}\/\d{2}\/\d{4})/i));
+  const tg=/TOTAL\s+GERAL:?\s*R\$\s*([\d.,]+)/i.exec(J);r.total=tg?pnum(tg[1]):null;r.itens=[];
+  const MED='unidade|metro|metros|hora|horas|m|km|un|und|kit|ponto|par|dia|mes|mês|servi[çc]o|vb|verba';
+  let last=null;
+  for(const ln of L){const m=/^(S[E3][VY][O0-9]{3,6})\s+(.*)$/i.exec(ln);
+    if(m){let code='SEV'+m[1].slice(3).replace(/[Oo]/g,'0');code=code.slice(0,3)+code.slice(3).replace(/^0(?=\d{4}$)/,'');const rest=m[2];
+      const t=/R\$\s*([\d.,]+)\s*$/.exec(rest);if(!t){last=null;continue;}const pre=rest.slice(0,t.index).trim();
+      const q=/([\d.,]+)\s*$/.exec(pre);const pre2=q?pre.slice(0,q.index).trim():pre;let u=null;const u1=/R\$\s*([\d.,]+)\s*$/.exec(pre2);let pre3=pre2;
+      if(u1){u=pnum(u1[1]);pre3=pre2.slice(0,u1.index).trim();}else pre3=pre2.replace(/R\$\s*$/,'').trim();
+      const mm=new RegExp('^(.*?)\\s+(\\S+)\\s+(Classe(?:\\s+\\S+?)?|Deslocamento|Plant[ãa]o|\\S+)\\s+('+MED+')$','i').exec(pre3);
+      let d=pre3,f='',cl='',md='';if(mm){d=mm[1];f=mm[2];cl=mm[3];md=mm[4];}
+      const qt=q?pnum(q[1]):0,tt=pnum(t[1]);if(u==null)u=qt?Math.round(tt/qt*100)/100:0;
+      last={c:code.toUpperCase(),d,f,cl,m:md,u,q:qt,t:tt,clOpen:/^Classe$/i.test(cl)};r.itens.push(last);continue;}
+    if(/^(Subtotal|TOTAL|C[óo]d\.|Relat)/i.test(ln)){last=null;continue;}
+    if(last){let x=ln.replace(/^[(|]+/,'');const um=/(?:R\$\s*)?([\d]+[.,]\d{2})\s*$/.exec(x);if(um){const uc=pnum(um[1]);if(uc>0&&Math.abs(uc*last.q-last.t)>0.011){const qq=Math.round(last.t/uc*1000)/1000;if(Math.abs(qq*uc-last.t)<0.011&&Math.abs(qq-Math.round(qq))<0.001){last.q=Math.round(qq);last.u=uc;}}else if(uc>0)last.u=uc;x=x.slice(0,um.index).trim();}
+      if(last.clOpen){const k=x.lastIndexOf(' ');const tail=k>=0?x.slice(k+1):x;if(tail&&tail.length<=4){last.cl+=' '+tail;x=k>=0?x.slice(0,k).trim():'';}last.clOpen=false;}
+      if(x&&x.length<80)last.d=(last.d+' '+x).trim();}}
+  r.itens.forEach(i=>delete i.clOpen);if(!r.itens.length)return [];const o=mkRel(r,arquivo);o.ocr=true;return [o];}
+let TESS=null;
+async function ocrWorker(){if(TESS)return TESS;const P=window.GOM_OCR||{script:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',langPath:'https://cdn.jsdelivr.net/npm/@tesseract.js-data/por@1.0.0/4.0.0_best_int'};
+  if(!window.Tesseract)await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=P.script;sc.onload=res;sc.onerror=()=>rej(new Error('não foi possível carregar o leitor de imagem'));document.head.appendChild(sc);});
+  TESS=Tesseract.createWorker('por',1,{workerPath:P.workerPath,corePath:P.corePath,langPath:P.langPath,gzip:true}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'0'});return w;}).catch(e=>{TESS=null;throw e;});return TESS;}
+async function lpuOcr(pdf,arquivo,prog){const w=await ocrWorker();let txt='';
+  for(let p=1;p<=Math.min(pdf.numPages,4);p++){prog&&prog(p);const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:2.8});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+    await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;const {data}=await w.recognize(c,{},{text:true});txt+='\n'+(data.text||'');if(/TOTAL\s+GERAL/i.test(data.text||''))break;}
+  return parseLpuOcr(txt,arquivo);}
 function parseLpuText(T,arquivo){const flat=s=>String(s||'').replace(/\s+/g,' ').trim();
   const partes=T.split(/(?=Relat[óo]rio de Presta[çc][ãa]o de Servi[çc]os\s+Empresa\b)/i).filter(p=>/Empresa\s/.test(p)&&/C[óo]d\./.test(p));
   return partes.map(P=>{const g=re=>{const m=re.exec(P);return m?flat(m[1]):'';};
@@ -2496,6 +2529,7 @@ async function lerPdfsLpu(files){if(!window.pdfjsLib){toast('Leitor de PDF indis
       for(let p=1;p<=Math.min(pdf.numPages,300);p++){const tc=await (await pdf.getPage(p)).getTextContent();for(const it of tc.items){const s=(it.str||'').replace(/\s+/g,' ').trim();if(s)tok.push(s);}}
       const T=tok.join('\t');let rels=parseLpuText(T,f.name);
       if(!rels.length){let ano=(F.mes||mesAtual()).slice(0,4);try{const md=await pdf.getMetadata();const cd=/D:(\d{4})(\d{2})/.exec((md.info||{}).CreationDate||'');if(cd)ano=cd[1];}catch(e){}rels=parseLpuAntigo(T,f.name,ano);}
+      if((!rels.length||rels.every(r=>!r.itens.length))&&T.replace(/\s/g,'').length<400){try{const ocr=await lpuOcr(pdf,f.name,p=>{F.lendo=`Lendo ${n} de ${files.length}: ${f.name} (PDF em imagem, reconhecendo texto da página ${p}… pode levar alguns segundos)`;const st=$('#lpu-msg');if(st)st.textContent=F.lendo;});if(ocr.length&&ocr[0].itens.length)rels=ocr;}catch(e){console.error(e);}}
       if(!rels.length||rels.every(r=>!r.itens.length)){let imgs=[];
         if(T.replace(/\s/g,'').length<80){for(let p=1;p<=Math.min(pdf.numPages,2);p++){const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:1.7});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;imgs.push(await new Promise(r=>c.toBlob(r,'image/png')));}}
         try{const ia=await lpuIA(imgs.length?'':T,imgs,f.name);if(ia.length)rels=ia;}catch(e){console.error(e);}}
@@ -2528,7 +2562,7 @@ function finLpu(box,m){const relsAll=F.lall?Object.entries(F.lpu).map(([id,r])=>
      ${L.length?`<div class="row" style="margin:12px 0 8px"><b>${L.length} relatório(s) lido(s) · ${brl(L.reduce((s,r)=>s+(r.total||0),0))}</b><div class="grow"></div><button class="btn" id="lpu-xls-l">Baixar Excel desta leitura</button><button class="btn primary" id="lpu-save" ${ro?'disabled':''}>Salvar selecionados no painel</button>${(()=>{const nd=L.filter((r,k)=>lpuDup(r,k)).length;return nd&&!ro?`<button class="btn" id="lpu-dno-all" style="color:var(--critical)">Recusar ${nd} repetida(s)</button>`:'';})()}<button class="btn" id="lpu-clear">Limpar</button></div>
      <input type="search" id="lpu-rq" value="${esc(F.lrq||'')}" placeholder="Buscar nos relatórios lidos: terceiro, técnico, cliente, cidade ou ID" style="width:100%;margin-bottom:8px">
      <div class="tablewrap"><table><thead><tr><th></th><th>Data</th><th>Empresa / técnicos</th><th>Cidade</th><th>Cliente / POP</th><th>Conta</th><th class="r">Itens</th><th class="r">Total</th><th>Situação</th></tr></thead><tbody>${L.map((r,k)=>{const rq=norm(F.lrq||'');if(rq){const x=terRes(r);if(!norm([x.empresa,r.empresa,x.tecnicos,r.cidade,r.cliente,r.etiqueta,r.cnpj].join(' ')).includes(rq))return '';}const ja=!!F.lpu[r.id];const op=F.opened.has('l'+r.id);
-       const rr=terRes(r);const dp=lpuDup(r,k);if(dp&&r.sel)r.sel=false;return `<tr class="click${dp?' dup':''}" data-l="${k}"><td><input type="checkbox" data-sel="${k}" ${r.sel?'checked':''} ${dp?'disabled title="Aprove ou recuse a repetida"':''} aria-label="Selecionar"></td>${relRow(rr,`<td>${dp?`<span class="pill" style="color:var(--critical)">Repetida</span><div class="hint">${esc(dp.txt)}</div>${ro?'':`<div class="row" style="gap:4px;margin-top:4px"><button class="btn small" data-dok="${k}">Aprovar mesmo assim</button><button class="btn small" data-dno="${k}">Recusar</button></div>`}`:r.dupOk?'<span class="pill" style="color:var(--warn)">Repetida · aprovada</span><div class="hint">será salva como um lançamento a mais</div>':r.aviso?`<span class="pill" style="color:var(--warn)">Conferir</span><div class="hint">${esc(r.aviso)}</div>`:'<span class="pill" style="color:var(--good)">Novo</span>'}${r.ia?'<div class="hint">lido por IA: confira os valores</div>':''}${r.formato==='antigo'?'<div class="hint">formato antigo · mês pela REF.</div>':''}
+       const rr=terRes(r);const dp=lpuDup(r,k);if(dp&&r.sel)r.sel=false;return `<tr class="click${dp?' dup':''}" data-l="${k}"><td><input type="checkbox" data-sel="${k}" ${r.sel?'checked':''} ${dp?'disabled title="Aprove ou recuse a repetida"':''} aria-label="Selecionar"></td>${relRow(rr,`<td>${dp?`<span class="pill" style="color:var(--critical)">Repetida</span><div class="hint">${esc(dp.txt)}</div>${ro?'':`<div class="row" style="gap:4px;margin-top:4px"><button class="btn small" data-dok="${k}">Aprovar mesmo assim</button><button class="btn small" data-dno="${k}">Recusar</button></div>`}`:r.dupOk?'<span class="pill" style="color:var(--warn)">Repetida · aprovada</span><div class="hint">será salva como um lançamento a mais</div>':r.aviso?`<span class="pill" style="color:var(--warn)">Conferir</span><div class="hint">${esc(r.aviso)}</div>`:'<span class="pill" style="color:var(--good)">Novo</span>'}${r.ia?'<div class="hint">lido por IA: confira os valores</div>':''}${r.ocr?'<div class="hint" style="color:var(--warn)">PDF em imagem, lido por reconhecimento de texto: confira os valores</div>':''}${r.formato==='antigo'?'<div class="hint">formato antigo · mês pela REF.</div>':''}
          <div style="display:grid;gap:4px;margin-top:4px"><select data-lt="${k}" aria-label="Terceiro" style="font-size:12px"><option value="">${r.terc?'— pelo CNPJ do PDF —':rr.tercId?'pelo CNPJ: '+esc(rr.empresa):'— escolher terceiro —'}</option>${tercList().map(t=>`<option value="${esc(t.id)}" ${t.id===r.terc?'selected':''}>${esc(t.nome)}</option>`).join('')}</select>
          ${r.conta?'':`<select data-lc="${k}" aria-label="Conta contábil" style="font-size:12px"><option value="">${rr.conta?'conta do terceiro: '+rr.conta:'— conta contábil —'}</option>${CONTAS.map(a=>`<option value="${a.c}">${a.c} · ${esc(a.n)}</option>`).join('')}</select>`}
          <label class="hint" style="display:grid;gap:2px">Competência (NF)${compSel(`data-lm="${k}"`,r.mes,'style="font-size:12px"')}</label></div></td>`)}</tr>${op?`<tr><td></td><td colspan="8">${itensTable(r)}</td></tr>`:''}`;}).join('')}</tbody></table></div>`:''}</div>
