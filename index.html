@@ -2462,7 +2462,7 @@ function ovWire(){const b=$('#ov-ns');if(!b)return;const sel=$('#ov-nm'),ta=$('#
   b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('budget',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}<div class="card" style="padding:12px 14px 4px"><h3 style="margin-bottom:8px">Executado por conta contábil, mês a mês</h3><p class="hint" style="margin:0 0 8px">Valor em vermelho = a conta passou do budget dela naquele mês (passe o mouse para ver o budget).</p></div>${finGeralTabela(G)}${finCaixa(ano)}`;
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${finCaixa(ano)}`;
   finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);}
 function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
   const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
