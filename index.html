@@ -2280,7 +2280,7 @@ function ctrCalc(c,m){const md=ctrMes(c,m);const meta=c.meta||{qtd:0,unit:0};
 const ctrConta=(code,m)=>contratosMes(m).filter(c=>c.conta===code).reduce((s,c)=>s+ctrCalc(c,m).total,0);
 
 /* ---------- terceiros e técnicos (nome correto pelo CNPJ) ---------- */
-const dig=s=>String(s||'').replace(/\D/g,'');
+const dig=s=>String(s||'').replace(/\D/g,'');const codsDe=t=>String(t.codigo||'').toUpperCase().split(/[\s,;\/]+/).filter(Boolean);
 const tercList=()=>Object.entries((F.cfg.terceiros||{}).lista||{}).filter(([,t])=>t).map(([id,t])=>({...t,id})).sort((a,b)=>a.nome.localeCompare(b.nome));
 let TERC_IDX=null,TERC_SRC=null;
 function terIdx(){const src=(F.cfg.terceiros||{}).lista;if(TERC_IDX&&TERC_SRC===src)return TERC_IDX;TERC_SRC=src;TERC_IDX={cnpj:{},nome:{}};
@@ -2795,7 +2795,7 @@ const valNum=v=>typeof v==='number'?v:num(String(v??'').replace(/[^\d,.\-]/g,'')
 function parseCtrRows(rows,map,st){st=st||{};const g=(r,k)=>map[k]==null?null:r[map[k]];const lin=[];let skip=0;const TL=tercList();
   for(const r of rows){const nome=String(g(r,'nome')??'').trim();const valor=valNum(g(r,'valor'));if(!nome||!valor){skip++;continue;}
     const nfData=cellDate(g(r,'nfData'))||'';const venc=cellDate(g(r,'venc'))||'';let mes=cellMes(g(r,'mes'))||'';if(!/^\d{4}-\d{2}$/.test(mes)||mes<'2000')mes='';if(!mes&&nfData)mes=nfData.slice(0,7);if(!mes&&venc&&st.compVenc!==false)mes=venc.slice(0,7);
-    const cod=String(g(r,'codigo')??'').trim().toUpperCase();let t=cod?TL.find(x=>x.codigo&&x.codigo.toUpperCase()===cod):null;if(!t){const h=terMatch({cnpj:String(g(r,'cnpj')??''),empresa:nome});t=h&&h.t;}
+    const cod=String(g(r,'codigo')??'').trim().toUpperCase();let t=cod?TL.find(x=>codsDe(x).includes(cod)):null;if(!t){const h=terMatch({cnpj:String(g(r,'cnpj')??''),empresa:nome});t=h&&h.t;}
     let conta=contaDeTexto(g(r,'conta'));if(!conta&&t&&t.conta)conta=t.conta;
     lin.push({nome:t?t.nome:nome,terc:t?t.id:'',valor,conta,mes,tipo:tipoCtrDe(g(r,'tipo')),nf:String(g(r,'nf')??'').trim(),nfData,desc:String(g(r,'desc')??'').trim(),oc:String(g(r,'oc')??'').trim(),desconto:Math.abs(valNum(g(r,'desconto')))||0,n:1});}
   let ok=lin;if(st.agrupar!==false&&lin.length>1){const G=new Map();
@@ -2884,16 +2884,16 @@ function fornParse(aoa){const H={nome:/fornecedor|razao|^nome/,codigo:/^cod/,tip
     const m=/^(.*?)\s*\(([^)]*)\)\s*(.*)$/.exec(bruto);const nome=(m?(m[1]+' '+m[3]):bruto).replace(/\s+/g,' ').trim();
     return {bruto,nome,obs:m?m[2].trim():'',codigo:v('codigo').toUpperCase(),tipo:v('tipo'),cnpj:fmtCnpj(v('cnpj')),telefone:v('telefone'),email:v('email')};}).filter(Boolean);}
 async function fornImport(rows){const L=tercList();const patch={};let novos=0,atual=0;
-  for(const x of rows){const ex=L.find(t=>(x.codigo&&t.codigo===x.codigo)||(dig(x.cnpj)&&dig(t.cnpj)===dig(x.cnpj))||norm(t.nome)===norm(x.nome));
+  for(const x of rows){const ex=L.find(t=>(x.codigo&&codsDe(t).includes(x.codigo))||(dig(x.cnpj)&&dig(t.cnpj)===dig(x.cnpj))||norm(t.nome)===norm(x.nome));
     const ap=new Set([...(ex&&ex.apelidos)||[]]);if(x.bruto!==x.nome)ap.add(x.bruto);
-    const d={nome:x.nome,codigo:x.codigo,tipo:x.tipo,obs:x.obs||(ex&&ex.obs)||'',telefone:x.telefone||(ex&&ex.telefone)||'',email:x.email||(ex&&ex.email)||'',cnpj:x.cnpj||(ex&&ex.cnpj)||'',apelidos:[...ap]};
+    const d={nome:ex?ex.nome:x.nome,codigo:ex&&ex.codigo&&!codsDe(ex).includes(x.codigo)?ex.codigo+', '+x.codigo:(ex&&ex.codigo)||x.codigo,tipo:x.tipo,obs:x.obs||(ex&&ex.obs)||'',telefone:x.telefone||(ex&&ex.telefone)||'',email:x.email||(ex&&ex.email)||'',cnpj:x.cnpj||(ex&&ex.cnpj)||'',apelidos:[...ap]};
     if(ex){atual++;patch[ex.id]=d;}else{novos++;patch[(x.codigo?x.codigo.toLowerCase():norm(x.nome).replace(/ /g,'-').slice(0,40))]={...d,conta:'',tecnicos:[]};}}
   await finWrite('terceiros',{lista:patch});return {novos,atual};}
 const tecRow=x=>`<div class="row trow" style="margin-bottom:6px"><input type="text" class="grow" data-x="nome" placeholder="Nome correto do técnico" value="${esc(x.nome||'')}"><input type="text" data-x="cnpj" style="width:190px" placeholder="CNPJ ou CPF (opcional)" value="${esc(x.cnpj||'')}"><button class="btn small" data-x="rm" type="button" aria-label="Remover técnico">✕</button></div>`;
 function tercFormHtml(t){return `<div class="card" id="tc-form" style="border-color:var(--focus)"><h3>${t.id?'Editar terceiro':'Novo terceiro'}</h3>
   <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><label class="fld"><span>Nome correto</span><input type="text" data-k="nome" value="${esc(t.nome||'')}" placeholder="Ex.: Dois Irmãos Telecom"></label>
    <label class="fld"><span>CNPJ da empresa</span><input type="text" data-k="cnpj" value="${esc(t.cnpj||'')}" placeholder="00.000.000/0000-00"></label>
-   <label class="fld"><span>Código do fornecedor</span><input type="text" data-k="codigo" value="${esc(t.codigo||'')}" placeholder="Ex.: F0001352"></label>
+   <label class="fld"><span>Código(s) do fornecedor</span><input type="text" data-k="codigo" value="${esc(t.codigo||'')}" placeholder="Ex.: F0001352 (vários: separe por vírgula)"></label>
    <label class="fld"><span>Tipo de serviço</span><input type="text" data-k="tipo" value="${esc(t.tipo||'')}" placeholder="Ex.: MANUTENÇÃO"></label>
    <label class="fld"><span>Responsável / observação</span><input type="text" data-k="obs" value="${esc(t.obs||'')}" placeholder="Ex.: Ezequias"></label>
    <label class="fld"><span>Telefone</span><input type="text" data-k="telefone" value="${esc(t.telefone||'')}"></label>
