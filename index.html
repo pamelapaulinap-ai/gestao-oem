@@ -2751,8 +2751,7 @@ function finItens(box,m){const {rels,terOpts,L,porConta}=itensDados(m);if(F.it&&
      <div class="card ov"><span class="v">${fmtN(totN)}</span><span class="l">Vezes lançados em ${fmtN(rels.length)} relatório(s)</span></div>
      <div class="card ov"><span class="v">${brl(totV)}</span><span class="l">Valor total dos itens</span></div>
      <div class="card ov ${div?'bad':''}"><span class="v" style="${div?'':'color:var(--fg)'}">${fmtN(div)}</span><span class="l">Itens com preço diferente entre lançamentos</span></div></div>
-   ${porConta.length?`<div class="card"><h3 style="margin:0 0 4px">Mais usados por conta contábil</h3><p class="hint" style="margin:0 0 10px">Os 5 itens lançados mais vezes em cada conta no período. Clique numa conta para filtrar a tabela abaixo.</p>
-     ${icGrid(porConta)}</div>`:''}
+
    <div class="card"><div class="row" style="margin-bottom:6px"><div class="grow"><h3 style="margin:0">Descrições mais usadas${F.ic?' · conta '+esc(F.ic):''}</h3><p class="hint" style="margin:4px 0 0">Itens da LPU somados de todos os relatórios do período${F.it?' de '+esc(F.it):''}. Clique no cabeçalho para ordenar e numa linha para ver por prestador.${topV?` Maior valor: <b>${esc(topV.c)} · ${esc(topV.d)}</b> (${brl(topV.tot)}).`:''}</p></div></div>
    ${rows.length?`<div class="tablewrap it-wrap"><table class="it"><thead><tr>${th('codigo','Código')}${th('desc','Descrição')}${th('un','Un.')}${th('vezes','Vezes usado',1)}${th('qtd','Quantidade',1)}${th('med','V. unit (mediana)',1)}${th('min','Mín.',1)}${th('max','Máx.',1)}${th('tot','Valor total',1)}${th('np','Prestadores',1)}</tr></thead><tbody>
     ${rows.map(x=>{const op=F.iopen===x.c+'|'+x.d;const dv=x.max-x.min>0.005;
