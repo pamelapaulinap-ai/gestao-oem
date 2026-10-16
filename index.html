@@ -753,6 +753,9 @@ table.it td:nth-child(2){min-width:300px;max-width:440px}table.it tbody tr[data-
 .comp-r{display:grid;grid-template-columns:minmax(140px,240px) 1fr 120px 44px minmax(120px,auto);gap:10px;align-items:center;font-size:13.5px}.comp-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .comp-b{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}.comp-b i{display:block;height:100%;background:var(--ink);border-radius:4px}.comp-r b{text-align:right}
 @media (max-width:700px){.comp-r{grid-template-columns:1fr auto}.comp-b,.comp-r>.hint:last-child{grid-column:1/-1}}
+.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}.ic-card{all:unset;box-sizing:border-box;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:4px;align-content:start;background:var(--surface);min-width:0;overflow:hidden;text-align:left;grid-template-columns:minmax(0,1fr)}
+.ic-card:hover{border-color:var(--focus)}.ic-card.on{border-color:var(--focus);box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 45%,transparent)}.ic-card:focus-visible{outline:2px solid var(--focus)}.ic-h{display:flex;gap:6px;align-items:center}
+.ic-card ol{margin:4px 0 0;padding-left:0;list-style:none;min-width:0;grid-template-columns:minmax(0,1fr);display:grid;gap:3px;font-size:13px}.ic-card li{display:flex;gap:8px;justify-content:space-between}.ic-d{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}.ic-v{white-space:nowrap}
 .rq-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px}
 .rq-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}.rq-bar i{display:block;height:100%}
 .rq-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-2)}.rq-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -2242,7 +2245,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={ip:'ano',iq:'',it:'',isort:'vezes',idir:-1,iopen:null,lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={ic:'',ip:'ano',iq:'',it:'',isort:'vezes',idir:-1,iopen:null,lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2504,19 +2507,27 @@ function parseLpuOcr(T,arquivo){const L=T.split(/\n/).map(x=>x.replace(/\s+/g,' 
   const tg=/TOTAL\s+GERAL:?\s*R\$\s*([\d.,]+)/i.exec(J);r.total=tg?pnum(tg[1]):null;r.itens=[];
   const MED='unidade|metro|metros|hora|horas|m|km|un|und|kit|ponto|par|dia|mes|mês|servi[çc]o|vb|verba';
   let last=null;
-  for(const ln of L){const m=/^(S[E3][VY][O0-9]{3,6})\s+(.*)$/i.exec(ln);
-    if(m){let code='SEV'+m[1].slice(3).replace(/[Oo]/g,'0');code=code.slice(0,3)+code.slice(3).replace(/^0(?=\d{4}$)/,'');const rest=m[2];
-      const t=/R\$\s*([\d.,]+)\s*$/.exec(rest);if(!t){last=null;continue;}const pre=rest.slice(0,t.index).trim();
-      const q=/([\d.,]+)\s*$/.exec(pre);const pre2=q?pre.slice(0,q.index).trim():pre;let u=null;const u1=/R\$\s*([\d.,]+)\s*$/.exec(pre2);let pre3=pre2;
-      if(u1){u=pnum(u1[1]);pre3=pre2.slice(0,u1.index).trim();}else pre3=pre2.replace(/R\$\s*$/,'').trim();
-      const mm=new RegExp('^(.*?)\\s+(\\S+)\\s+(Classe(?:\\s+\\S+?)?|Deslocamento|Plant[ãa]o|\\S+)\\s+('+MED+')$','i').exec(pre3);
-      let d=pre3,f='',cl='',md='';if(mm){d=mm[1];f=mm[2];cl=mm[3];md=mm[4];}
-      const qt=q?pnum(q[1]):0,tt=pnum(t[1]);if(u==null)u=qt?Math.round(tt/qt*100)/100:0;
-      last={c:code.toUpperCase(),d,f,cl,m:md,u,q:qt,t:tt,clOpen:/^Classe$/i.test(cl)};r.itens.push(last);continue;}
+  const MRE=new RegExp('^(.*?)\\s+(\\S+)\\s+(Classe(?:\\s+\\S+?)?|Deslocamento|Plant[ãa]o|\\S+)\\s+('+MED+'|\\S*dade)$','i');
+  for(const ln0 of L){const ln=ln0.replace(/^[^A-Za-z0-9]{0,3}\S{0,2}\s+(?=S[E3][VY][A-Z0-9]{3,8}\s)/,'');const m=/^(S[E3][VY][A-Z0-9]{3,8})\s+(.*)$/i.exec(ln);
+    if(m){const dg=m[1].slice(3).toUpperCase().replace(/[OQDNU]/g,'0').replace(/[IL|]/g,'1').replace(/S/g,'5').replace(/B/g,'8').replace(/\D/g,'');const code='SEV'+(dg.slice(-4).padStart(4,'0'));
+      const rest=m[2].replace(/^[—–\-\s]+/,'');let t=/R\$\s*([\d.,]+)\s*$/.exec(rest);let pend=false,pre,qt=0,u=null,tt=0;
+      if(t){pre=rest.slice(0,t.index).trim();tt=pnum(t[1]);}
+      else{const p2=/R\$\s*([\d.,]*)\s+([\d.,]+)\s+R\$\s*$/.exec(rest);if(!p2){last=null;continue;}pend=true;pre=rest.slice(0,p2.index).trim();if(p2[1])u=pnum(p2[1]);qt=pnum(p2[2]);}
+      let pre3=pre;if(!pend){const q=/([\d.,]+)\s*$/.exec(pre);const pre2=q?pre.slice(0,q.index).trim():pre;qt=q?pnum(q[1]):0;const u1=/R\$\s*([\d.,]+)\s*$/.exec(pre2);
+        if(u1){u=pnum(u1[1]);pre3=pre2.slice(0,u1.index).trim();}else pre3=pre2.replace(/R\$\s*$/,'').trim();}
+      const mm=MRE.exec(pre3);let d=pre3,f='',cl='',md='';if(mm){d=mm[1];f=mm[2];cl=mm[3];md=/dade$/i.test(mm[4])?'unidade':mm[4];}
+      if(!pend&&u==null)u=qt?Math.round(tt/qt*100)/100:0;
+      last={c:code,d:d.replace(/^[—–\-\s]+/,''),f,cl,m:md,u:u||0,q:qt,t:tt,clOpen:/^Classe$/i.test(cl),pend};r.itens.push(last);continue;}
     if(/^(Subtotal|TOTAL|C[óo]d\.|Relat)/i.test(ln)){last=null;continue;}
-    if(last){let x=ln.replace(/^[(|]+/,'');const um=/(?:R\$\s*)?([\d]+[.,]\d{2})\s*$/.exec(x);if(um){const uc=pnum(um[1]);if(uc>0&&Math.abs(uc*last.q-last.t)>0.011){const qq=Math.round(last.t/uc*1000)/1000;if(Math.abs(qq*uc-last.t)<0.011&&Math.abs(qq-Math.round(qq))<0.001){last.q=Math.round(qq);last.u=uc;}}else if(uc>0)last.u=uc;x=x.slice(0,um.index).trim();}
+    if(last){let x=ln.replace(/^[(|]+/,'');
+      if(last.pend){const ns=[...x.matchAll(/(\d[\d.,]*\d)/g)].map(z=>z[1]);if(ns.length>=2){last.u=pnum(ns[ns.length-2]);last.t=pnum(ns[ns.length-1]);}else if(ns.length===1){last.t=pnum(ns[0]);if(!last.u&&last.q)last.u=Math.round(last.t/last.q*100)/100;}
+        if(!last.u&&last.q)last.u=Math.round(last.t/last.q*100)/100;last.pend=false;x=x.replace(/(\d[\d.,]*\d)/g,'').replace(/R\$/g,'').trim();
+        if(last.clOpen){const k=x.lastIndexOf(' ');const tail=k>=0?x.slice(k+1):x;if(tail&&tail.length<=4){last.cl+=' '+tail;x=k>=0?x.slice(0,k).trim():'';}last.clOpen=false;}
+        if(x&&x.length<80)last.d=(last.d+' '+x).trim();continue;}
+      const um=/(?:R\$\s*)?([\d]+[.,]\d{2})\s*$/.exec(x);if(um){const uc=pnum(um[1]);if(uc>0&&Math.abs(uc*last.q-last.t)>0.011){const qq=Math.round(last.t/uc*1000)/1000;if(Math.abs(qq*uc-last.t)<0.011&&Math.abs(qq-Math.round(qq))<0.001){last.q=Math.round(qq);last.u=uc;}}else if(uc>0)last.u=uc;x=x.slice(0,um.index).trim();}
       if(last.clOpen){const k=x.lastIndexOf(' ');const tail=k>=0?x.slice(k+1):x;if(tail&&tail.length<=4){last.cl+=' '+tail;x=k>=0?x.slice(0,k).trim():'';}last.clOpen=false;}
       if(x&&x.length<80)last.d=(last.d+' '+x).trim();}}
+  r.itens.forEach(i=>delete i.pend);
   r.itens.forEach(i=>delete i.clOpen);if(!r.itens.length)return [];const o=mkRel(r,arquivo);o.ocr=true;return [o];}
 let TESS=null;
 async function ocrWorker(){if(TESS)return TESS;const P=window.GOM_OCR||{script:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',langPath:'https://cdn.jsdelivr.net/npm/@tesseract.js-data/por@1.0.0/4.0.0_best_int'};
@@ -2525,7 +2536,7 @@ async function ocrWorker(){if(TESS)return TESS;const P=window.GOM_OCR||{script:'
 async function lpuOcr(pdf,arquivo,prog){const w=await ocrWorker();let txt='';
   for(let p=1;p<=Math.min(pdf.numPages,4);p++){prog&&prog(p);const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:2.8});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
     await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;const {data}=await w.recognize(c,{},{text:true});txt+='\n'+(data.text||'');if(/TOTAL\s+GERAL/i.test(data.text||''))break;}
-  return parseLpuOcr(txt,arquivo);}
+  window.__lastOcr=txt;return parseLpuOcr(txt,arquivo);}
 function parseLpuText(T,arquivo){const flat=s=>String(s||'').replace(/\s+/g,' ').trim();
   const partes=T.split(/(?=Relat[óo]rio de Presta[çc][ãa]o de Servi[çc]os\s+Empresa\b)/i).filter(p=>/Empresa\s/.test(p)&&/C[óo]d\./.test(p));
   return partes.map(P=>{const g=re=>{const m=re.exec(P);return m?flat(m[1]):'';};
@@ -2557,7 +2568,7 @@ async function lerPdfsLpu(files){if(!window.pdfjsLib){toast('Leitor de PDF indis
       for(let p=1;p<=Math.min(pdf.numPages,300);p++){const tc=await (await pdf.getPage(p)).getTextContent();for(const it of tc.items){const s=(it.str||'').replace(/\s+/g,' ').trim();if(s)tok.push(s);}}
       const T=tok.join('\t');let rels=parseLpuText(T,f.name);
       if(!rels.length){let ano=(F.mes||mesAtual()).slice(0,4);try{const md=await pdf.getMetadata();const cd=/D:(\d{4})(\d{2})/.exec((md.info||{}).CreationDate||'');if(cd)ano=cd[1];}catch(e){}rels=parseLpuAntigo(T,f.name,ano);}
-      if((!rels.length||rels.every(r=>!r.itens.length))&&T.replace(/\s/g,'').length<400){try{const ocr=await lpuOcr(pdf,f.name,p=>{F.lendo=`Lendo ${n} de ${files.length}: ${f.name} (PDF em imagem, reconhecendo texto da página ${p}… pode levar alguns segundos)`;const st=$('#lpu-msg');if(st)st.textContent=F.lendo;});if(ocr.length&&ocr[0].itens.length)rels=ocr;}catch(e){console.error(e);}}
+      if(!rels.length||rels.every(r=>!r.itens.length)){try{const ocr=await lpuOcr(pdf,f.name,p=>{F.lendo=`Lendo ${n} de ${files.length}: ${f.name} (PDF em imagem, reconhecendo texto da página ${p}… pode levar alguns segundos)`;const st=$('#lpu-msg');if(st)st.textContent=F.lendo;});if(ocr.length&&ocr[0].itens.length)rels=ocr;}catch(e){console.error(e);}}
       if(!rels.length||rels.every(r=>!r.itens.length)){let imgs=[];
         if(T.replace(/\s/g,'').length<80){for(let p=1;p<=Math.min(pdf.numPages,2);p++){const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:1.7});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;imgs.push(await new Promise(r=>c.toBlob(r,'image/png')));}}
         try{const ia=await lpuIA(imgs.length?'':T,imgs,f.name);if(ia.length)rels=ia;}catch(e){console.error(e);}}
@@ -2575,7 +2586,7 @@ function itensSheet(rels){const L=aggItens(rels).sort((a,b)=>b.tot-a.tot);const 
   const ws=xlsSheet(A,[11,56,10,12,12,16,11,11,14,10,12,12],[5,6,7,8]);ws['!autofilter']={ref:`A1:L${A.length}`};return ws;}
 function lpuWb(rels){const {A,I}=lpuAoa(rels);const wb=XLSX.utils.book_new();const a=xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]);a['!autofilter']={ref:`A1:M${A.length}`};
   const i=xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]);i['!autofilter']={ref:`A1:N${I.length}`};
-  XLSX.utils.book_append_sheet(wb,a,'Atividades');XLSX.utils.book_append_sheet(wb,i,'Itens');if(rels.length)XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens');
+  XLSX.utils.book_append_sheet(wb,a,'Atividades');XLSX.utils.book_append_sheet(wb,i,'Itens');if(rels.length){XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens');XLSX.utils.book_append_sheet(wb,itensContaSheet(rels),'Itens por conta');}
   const grp=(key)=>{const o={};rels.forEach(r=>{const k=key(r)||'(não identificado)';o[k]=o[k]||[0,0];o[k][0]++;o[k][1]+=r.total||0;});return Object.entries(o).sort((x,y)=>y[1][1]-x[1][1]).map(([k,v])=>[k,v[0],Math.round(v[1]*100)/100]);};
   const R=[['Por terceiro','Relatórios','Total (R$)'],...grp(r=>r.empresa),[],['Por conta contábil','Relatórios','Total (R$)'],...grp(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||r.contaDesc):''),[],['Total geral',rels.length,Math.round(rels.reduce((s,r)=>s+(r.total||0),0)*100)/100]];
   XLSX.utils.book_append_sheet(wb,xlsSheet(R,[48,12,16],[2]),'Resumo');return wb;}
@@ -2652,11 +2663,17 @@ function aggItens(rs){const G=new Map();
   const top=mp=>[...mp.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
   const L=[...G.values()].map(g=>({c:g.c,d:top(g.ds),un:top(g.un),vezes:g.vezes,qtd:g.qtd,tot:g.tot,med:med(g.us),min:g.us.length?Math.min(...g.us):0,max:g.us.length?Math.max(...g.us):0,np:g.prest.size,nrel:g.rels.size,prest:[...g.prest.values()].map(p=>({...p,med:med(p.us),min:p.us.length?Math.min(...p.us):0,max:p.us.length?Math.max(...p.us):0})).sort((a,b)=>b.tot-a.tot)}));
   return L;}
+function itensPorConta(rels){const by=new Map();rels.forEach(r=>{const k=r.conta||'';if(!by.has(k))by.set(k,[]);by.get(k).push(r);});
+  return [...by.entries()].map(([c,rs])=>{const L=aggItens(rs);return {c,n:c?((CONTA[c]||{}).n||''):'Sem conta',g:(CONTA[c]||{}).g||'',L,tot:L.reduce((s,x)=>s+x.tot,0)};}).sort((a,b)=>b.tot-a.tot);}
+function itensContaSheet(rels){const A=[['Conta contábil','Posição','Código','Descrição','Un.','Vezes usado','Quantidade','Valor total','% da conta']];
+  itensPorConta(rels).forEach(k=>{const lab=(k.c?k.c+' · ':'')+k.n;k.L.slice().sort((a,b)=>b.vezes-a.vezes||b.tot-a.tot).forEach((x,i)=>A.push([lab,i+1,x.c,x.d,x.un,x.vezes,x.qtd,x.tot,k.tot?Math.round(x.tot/k.tot*1000)/10:0]));
+    A.push(['Total '+lab,'','','',k.L.length+' itens',k.L.reduce((s,x)=>s+x.vezes,0),'',k.tot,100]);A.push([]);});
+  const ws=xlsSheet(A,[40,9,11,56,10,12,12,14,11],[7]);return ws;}
 function itensDados(m){const ano=m.slice(0,4);const rels=Object.entries(F.lpu).map(([id,r])=>({...terRes(r),id})).filter(r=>F.ip==='tudo'||(F.ip==='mes'?r.mes===m:(r.mes||'').startsWith(ano)));
   const terOpts=[...new Set(rels.map(r=>r.empresa).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const rs=rels.filter(r=>!F.it||r.empresa===F.it);const L=aggItens(rs);
-  return {rels:rs,terOpts,L};}
-function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.includes(F.it))F.it='';
+  const rs0=rels.filter(r=>!F.it||r.empresa===F.it);const porConta=itensPorConta(rs0);const rs=rs0.filter(r=>!F.ic||(r.conta||'')===F.ic);const L=aggItens(rs);
+  return {rels:rs,terOpts,L,porConta};}
+function finItens(box,m){const {rels,terOpts,L,porConta}=itensDados(m);if(F.it&&!terOpts.includes(F.it))F.it='';
   const q=norm(F.iq);const rows=L.filter(x=>!q||norm(x.c+' '+x.d).includes(q));
   const key={codigo:x=>x.c,desc:x=>norm(x.d),un:x=>x.un,vezes:x=>x.vezes,qtd:x=>x.qtd,med:x=>x.med,min:x=>x.min,max:x=>x.max,tot:x=>x.tot,np:x=>x.np}[F.isort]||(x=>x.vezes);
   rows.sort((a,b)=>{const A=key(a),B=key(b);return (A<B?-1:A>B?1:0)*F.idir||b.vezes-a.vezes;});
@@ -2667,12 +2684,16 @@ function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.
   const th=(k,l,r)=>`<th class="${r?'r':''} sortable" data-is="${k}" aria-sort="${F.isort===k?(F.idir>0?'ascending':'descending'):'none'}">${l}${F.isort===k?(F.idir>0?' ↑':' ↓'):''}</th>`;
   box.innerHTML=`<h2 style="margin:8px 0 0;font-size:19px">Itens da LPU</h2><div class="row" style="gap:10px"><div class="seg" role="group" aria-label="Período">${[['mes','Só '+mesCurto(m)],['ano','Ano '+m.slice(0,4)],['tudo','Tudo']].map(([k,l])=>`<button data-ip="${k}" aria-pressed="${F.ip===k}">${l}</button>`).join('')}</div>
      <select id="it-ter" aria-label="Terceiro"><option value="">Todos os terceiros</option>${terOpts.map(t=>`<option ${t===F.it?'selected':''}>${esc(t)}</option>`).join('')}</select>
+     <select id="it-cta" aria-label="Conta contábil"><option value="">Todas as contas</option>${porConta.map(k=>`<option value="${esc(k.c)}" ${k.c===F.ic?'selected':''}>${esc((k.c?k.c+' · ':'')+k.n)}</option>`).join('')}</select>
      <input type="search" id="it-q" class="grow" value="${esc(F.iq)}" placeholder="Buscar descrição ou código"><button class="btn" id="it-xls" ${rows.length?'':'disabled'}>Baixar Excel</button></div>
    <div class="ov-kpis"><div class="card ov"><span class="v">${fmtN(L.length)}</span><span class="l">Itens diferentes · ${esc(per)}</span></div>
      <div class="card ov"><span class="v">${fmtN(totN)}</span><span class="l">Vezes lançados em ${fmtN(rels.length)} relatório(s)</span></div>
      <div class="card ov"><span class="v">${brl(totV)}</span><span class="l">Valor total dos itens</span></div>
      <div class="card ov ${div?'bad':''}"><span class="v" style="${div?'':'color:var(--fg)'}">${fmtN(div)}</span><span class="l">Itens com preço diferente entre lançamentos</span></div></div>
-   <div class="card"><div class="row" style="margin-bottom:6px"><div class="grow"><h3 style="margin:0">Descrições mais usadas</h3><p class="hint" style="margin:4px 0 0">Itens da LPU somados de todos os relatórios do período${F.it?' de '+esc(F.it):''}. Clique no cabeçalho para ordenar e numa linha para ver por prestador.${topV?` Maior valor: <b>${esc(topV.c)} · ${esc(topV.d)}</b> (${brl(topV.tot)}).`:''}</p></div></div>
+   ${porConta.length?`<div class="card"><h3 style="margin:0 0 4px">Mais usados por conta contábil</h3><p class="hint" style="margin:0 0 10px">Os 5 itens lançados mais vezes em cada conta no período. Clique numa conta para filtrar a tabela abaixo.</p>
+     <div class="ic-grid">${porConta.map(k=>`<button type="button" class="ic-card${F.ic===k.c?' on':''}" data-ic="${esc(k.c)}"><div class="ic-h">${k.g?`<span class="gt ${k.g}">${k.g.toUpperCase()}</span>`:''}<b>${esc((k.c?k.c+' · ':'')+k.n)}</b></div><div class="hint">${fmtN(k.L.length)} itens · ${brl(k.tot)}</div>
+       <ol>${k.L.slice().sort((a,b)=>b.vezes-a.vezes||b.tot-a.tot).slice(0,5).map((x,i)=>`<li><span class="ic-d" title="${esc(x.c+' · '+x.d)}"><b class="hint">${i+1}.</b> <span class="mono hint">${esc(x.c)}</span> ${esc(x.d)}</span><span class="ic-v"><b>${fmtN(x.vezes)}×</b> <span class="hint">${brl0(x.tot)}</span></span></li>`).join('')}</ol></button>`).join('')}</div></div>`:''}
+   <div class="card"><div class="row" style="margin-bottom:6px"><div class="grow"><h3 style="margin:0">Descrições mais usadas${F.ic?' · conta '+esc(F.ic):''}</h3><p class="hint" style="margin:4px 0 0">Itens da LPU somados de todos os relatórios do período${F.it?' de '+esc(F.it):''}. Clique no cabeçalho para ordenar e numa linha para ver por prestador.${topV?` Maior valor: <b>${esc(topV.c)} · ${esc(topV.d)}</b> (${brl(topV.tot)}).`:''}</p></div></div>
    ${rows.length?`<div class="tablewrap it-wrap"><table class="it"><thead><tr>${th('codigo','Código')}${th('desc','Descrição')}${th('un','Un.')}${th('vezes','Vezes usado',1)}${th('qtd','Quantidade',1)}${th('med','V. unit (mediana)',1)}${th('min','Mín.',1)}${th('max','Máx.',1)}${th('tot','Valor total',1)}${th('np','Prestadores',1)}</tr></thead><tbody>
     ${rows.map(x=>{const op=F.iopen===x.c+'|'+x.d;const dv=x.max-x.min>0.005;
       return `<tr class="click${op?' open':''}" data-ik="${esc(x.c+'|'+x.d)}"><td class="mono hint">${esc(x.c)}</td><td>${esc(x.d)}</td><td class="hint">${esc(x.un)}</td><td class="r num"><b>${fmtN(x.vezes)}</b></td><td class="r num">${nf(x.qtd)}</td><td class="r num">${brl(x.med)}</td><td class="r num">${brl(x.min)}</td><td class="r num ${dv?'warnv':''}" ${dv?'title="Preço variou entre lançamentos"':''}>${brl(x.max)}</td>
@@ -2680,7 +2701,8 @@ function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.
         ${op?`<tr class="it-det"><td></td><td colspan="9"><table class="mini" style="width:100%"><thead><tr><th>Prestador</th><th class="r">Vezes</th><th class="r">Quantidade</th><th class="r">V. unit (mediana)</th><th class="r">Mín.</th><th class="r">Máx.</th><th class="r">Valor total</th></tr></thead><tbody>${x.prest.map(p=>`<tr><td>${esc(p.n)}</td><td class="r num">${fmtN(p.vezes)}</td><td class="r num">${nf(p.qtd)}</td><td class="r num">${brl(p.med)}</td><td class="r num">${brl(p.min)}</td><td class="r num">${brl(p.max)}</td><td class="r num"><b>${brl(p.tot)}</b></td></tr>`).join('')}</tbody></table></td></tr>`:''}`;}).join('')}
    </tbody></table></div>`:`<p class="hint">${L.length?'Nenhum item na busca.':'Nenhuma LPU salva neste período.'}</p>`}</div>`;
   box.querySelectorAll('[data-ip]').forEach(b=>b.onclick=()=>{F.ip=b.dataset.ip;renderFin();});
-  $('#it-ter').onchange=e=>{F.it=e.target.value;renderFin();};
+  $('#it-ter').onchange=e=>{F.it=e.target.value;renderFin();};$('#it-cta').onchange=e=>{F.ic=e.target.value;renderFin();};
+  box.querySelectorAll('[data-ic]').forEach(b=>b.onclick=()=>{F.ic=F.ic===b.dataset.ic?'':b.dataset.ic;renderFin();const t=box.querySelector('.it-wrap');if(t&&F.ic)t.scrollIntoView({block:'start',behavior:'smooth'});});
   const iq=$('#it-q');iq.oninput=()=>{clearTimeout(iq._t);iq._t=setTimeout(()=>{F.iq=iq.value;renderFin();const e=$('#it-q');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250);};
   box.querySelectorAll('[data-is]').forEach(h=>h.onclick=()=>{const k=h.dataset.is;if(F.isort===k)F.idir=-F.idir;else{F.isort=k;F.idir=['codigo','desc','un'].includes(k)?1:-1;}renderFin();});
   box.querySelectorAll('[data-ik]').forEach(tr=>tr.onclick=()=>{F.iopen=F.iopen===tr.dataset.ik?null:tr.dataset.ik;renderFin();});
@@ -2688,8 +2710,8 @@ function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.
     const A=[['Código','Descrição','Un.','Vezes usado','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total','Prestadores'],...rows.map(x=>[x.c,x.d,x.un,x.vezes,x.qtd,x.med,x.min,x.max,x.tot,x.np])];
     const ws=xlsSheet(A,[11,60,10,12,12,16,11,11,14,12],[5,6,7,8]);ws['!autofilter']={ref:`A1:J${A.length}`};XLSX.utils.book_append_sheet(wb,ws,'Itens mais usados');
     const P=[['Código','Descrição','Prestador','Vezes','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total']];rows.forEach(x=>x.prest.forEach(p=>P.push([x.c,x.d,p.n,p.vezes,p.qtd,p.med,p.min,p.max,p.tot])));
-    XLSX.utils.book_append_sheet(wb,xlsSheet(P,[11,50,30,8,12,16,11,11,14],[5,6,7,8]),'Por prestador');
-    xlsSave(wb,`itens_lpu_${F.ip==='mes'?m:F.ip==='ano'?m.slice(0,4):'historico'}.xlsx`,{resumo:resumoItens(rows,F.ip==='mes'?mesLabel(m):F.ip==='ano'?'ano '+m.slice(0,4):'todo o histórico')});};}
+    XLSX.utils.book_append_sheet(wb,xlsSheet(P,[11,50,30,8,12,16,11,11,14],[5,6,7,8]),'Por prestador');XLSX.utils.book_append_sheet(wb,itensContaSheet(rels),'Itens por conta');
+    xlsSave(wb,`itens_lpu_${F.ip==='mes'?m:F.ip==='ano'?m.slice(0,4):'historico'}.xlsx`,{resumo:resumoItens(rows,F.ip==='mes'?mesLabel(m):F.ip==='ano'?'ano '+m.slice(0,4):'todo o histórico',rels)});};}
 
 /* ---------- aba: terceiros e técnicos ---------- */
 function tercGastos(t){const por={};const add=(m,k,v)=>{if(!m||!v)return;const o=por[m]=por[m]||{lpu:0,ctr:0};o[k]+=v;};
@@ -2854,7 +2876,7 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   XLSX.utils.book_append_sheet(wb,xlsSheet(C,[44,10,14,22,14,14,14,40],[2,3,4,5,6]),'Conta contábil');
   const K=[['Contrato','Tipo','Conta contábil','Base (R$)','Bonificações (R$)','Excedente (R$)','Desconto (R$)','Motivo do desconto','Total (R$)','Atividades','Mês fechado'],...contratosMes(m).map(c=>{const x=ctrCalc(c,m);return [c.nome,TIPO_CTR[c.tipo]||'',c.conta,x.base,x.bonus,x.exc,-x.desc,x.md.descMotivo||'',x.total,c.tipo==='meta'?(x.md.atividades||0):'',x.md.closed?'sim':'não'];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,14,14,16,14,14,11,12],[3,4,5,6]),'Contratos fora da LPU');
-  const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens LPU');}
+  const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens LPU');XLSX.utils.book_append_sheet(wb,itensContaSheet(rels),'Itens por conta');}
   xlsSave(wb,`financeiro_om_${m}.xlsx`,{resumo:resumoMes(m)});}
 function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
   box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano,true)}
@@ -3244,19 +3266,23 @@ async function resumoSheet(X,R){const S=X.addWorksheet('Resumo',{views:[{showGri
     for(let cc=c0;cc<=c1;cc++){S.getCell(4,cc).border={top:{style:'medium',color:{argb:k.tone==='bad'?XC.red:XC.lime}}};}});
   S.getRow(5).height=30;
   let row=8;for(const ch of R.charts||[]){if(!ch||!ch.png)continue;S.getCell(row,1).value=ch.titulo;S.getCell(row,1).font={bold:true,size:12,color:{argb:XC.fg}};
-    const id=X.addImage({base64:ch.png,extension:'png'});S.addImage(id,{tl:{col:0,row:row},ext:{width:ch.w||900,height:ch.h||380}});row+=Math.ceil((ch.h||380)/20)+3;}
+    if(ch.leg){S.getCell(row+1,1).value=ch.leg;S.getCell(row+1,1).font={size:9.5,italic:true,color:{argb:XC.muted}};row++;}
+    const W=ch.w||900,H=ch.h||380,nr=Math.ceil(H/20);for(let r=row+1;r<=row+nr+1;r++)S.getRow(r).height=15;
+    const id=X.addImage({base64:ch.png,extension:'png'});S.addImage(id,{tl:{col:0,row:row},br:{col:W/103,row:row+H/20},editAs:'oneCell'});row+=nr+3;}
   if(R.nota){S.getCell(row,1).value=R.nota;S.getCell(row,1).font={size:9,italic:true,color:{argb:XC.muted}};}}
 /* ---------- gráficos desenhados em imagem (para o Excel) ---------- */
 const CHC={fg:'#15202b',muted:'#76838f',grid:'#e3e8ec',lime:'#8fb22a',dark:'#10201a',capex:'#c98500',opex:'#2a78d6',bud:'#76838f',red:'#c42b2b'};
 function cnv(w,h){const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const x=c.getContext('2d');x.scale(2,2);x.fillStyle='#fff';x.fillRect(0,0,w,h);x.font='13px Arial';return [c,x];}
 const kfmt=v=>Math.abs(v)>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':Math.abs(v)>=1e3?Math.round(v/1e3).toLocaleString('pt-BR')+' mil':Math.round(v).toLocaleString('pt-BR');
-function chartHBars(items,o){o=o||{};items=items.filter(i=>i.v>0||(i.b||0)>0).slice(0,o.max||12);const w=900,rowH=30,h=Math.max(120,items.length*rowH+50);const [c,x]=cnv(w,h);if(!items.length)return null;
-  const lw=o.lw||300,mx=Math.max(1,...items.map(i=>Math.max(i.v,i.b||0)))*1.12,X0=lw+10,X1=w-190,sx=v=>X0+(X1-X0)*v/mx;
-  items.forEach((it,k)=>{const y=20+k*rowH;x.fillStyle=CHC.fg;x.textAlign='right';x.textBaseline='middle';let lab=it.l;while(x.measureText(lab).width>lw-6&&lab.length>4)lab=lab.slice(0,-2);if(lab!==it.l)lab+='…';x.fillText(lab,lw,y+10);
-    const over=it.b&&it.v>it.b;x.fillStyle=over?CHC.red:(o.cor||CHC.lime);x.beginPath();x.roundRect?x.roundRect(X0,y+2,Math.max(2,sx(it.v)-X0),16,[0,4,4,0]):x.rect(X0,y+2,Math.max(2,sx(it.v)-X0),16);x.fill();
-    if(it.b){x.strokeStyle=CHC.dark;x.lineWidth=2;x.setLineDash([]);x.beginPath();x.moveTo(sx(it.b),y-1);x.lineTo(sx(it.b),y+21);x.stroke();}
-    x.fillStyle=over?CHC.red:CHC.fg;x.textAlign='left';x.font='bold 12px Arial';const tv=(o.raw?'':'R$ ')+kfmt(it.v)+(it.b?'  /  '+kfmt(it.b):'');x.fillText(tv,X1+14,y+10);x.font='13px Arial';});
-  if(items.some(i=>i.b)){x.fillStyle=CHC.muted;x.textAlign='left';x.font='11px Arial';x.fillText('Barra = executado · traço escuro = budget · vermelho = acima do budget',X0,h-12);}
+function chartHBars(items,o){o=o||{};items=items.filter(i=>i.v>0||(i.b||0)>0).slice(0,o.max||12);const hb=items.some(i=>i.b);const top0=hb?44:16;const w=900,rowH=30,h=Math.max(120,items.length*rowH+top0+20);const [c,x]=cnv(w,h);if(!items.length)return null;
+  if(hb){x.textBaseline='middle';x.font='12px Arial';let lx=20;const key=(col,t,track)=>{x.fillStyle=col;if(track){x.fillRect(lx,8,26,14);}else x.fillRect(lx,11,26,8);x.fillStyle=CHC.fg;x.textAlign='left';x.fillText(t,lx+32,15);lx+=x.measureText(t).width+62;};
+    key('#e3e8ec','Budget da conta (trilho cinza)',1);key(o.cor||CHC.lime,'Executado');key(CHC.red,'Executado acima do budget');}
+  const lw=o.lw||300,mx=Math.max(1,...items.map(i=>Math.max(i.v,i.b||0)))*1.12,X0=lw+10,X1=w-210,sx=v=>X0+(X1-X0)*v/mx;
+  items.forEach((it,k)=>{const y=top0+k*rowH;x.fillStyle=CHC.fg;x.textAlign='right';x.textBaseline='middle';let lab=it.l;while(x.measureText(lab).width>lw-6&&lab.length>4)lab=lab.slice(0,-2);if(lab!==it.l)lab+='…';x.fillText(lab,lw,y+10);
+    const over=it.b&&it.v>it.b;if(it.b){x.fillStyle='#e3e8ec';x.beginPath();x.roundRect?x.roundRect(X0,y-2,Math.max(2,sx(it.b)-X0),24,4):x.rect(X0,y-2,Math.max(2,sx(it.b)-X0),24);x.fill();}x.fillStyle=over?CHC.red:(o.cor||CHC.lime);x.beginPath();x.roundRect?x.roundRect(X0,y+2,Math.max(2,sx(it.v)-X0),16,[0,4,4,0]):x.rect(X0,y+2,Math.max(2,sx(it.v)-X0),16);x.fill();
+    if(it.b&&over){x.strokeStyle=CHC.dark;x.lineWidth=2;x.beginPath();x.moveTo(sx(it.b),y-3);x.lineTo(sx(it.b),y+23);x.stroke();}
+    x.fillStyle=over?CHC.red:CHC.fg;x.textAlign='left';x.font='bold 12px Arial';const tv=(o.raw?'':'R$ ')+kfmt(it.v)+(it.b?' de R$ '+kfmt(it.b)+' · '+Math.round(it.v/it.b*100)+'%':'');x.fillText(tv,X1+10,y+10);x.font='13px Arial';});
+
   return {png:c.toDataURL('image/png'),w,h};}
 function chartLines(labels,series){const w=900,h=360,pl=70,pr=110,pt=20,pb=40;const [c,x]=cnv(w,h);if(!labels.length)return null;
   const mx=Math.max(1,...series.flatMap(s=>s.vals.filter(v=>v!=null)))*1.1;const sx=i=>labels.length===1?(pl+(w-pr))/2:pl+i*(w-pl-pr)/(labels.length-1);const sy=v=>pt+(h-pt-pb)*(1-v/mx);
@@ -3267,14 +3293,14 @@ function chartLines(labels,series){const w=900,h=360,pl=70,pr=110,pt=20,pb=40;co
   labs.sort((a,b)=>a.y-b.y);for(let i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<15)labs[i].y=labs[i-1].y+15;
   labs.forEach(l=>{x.fillStyle=l.c;x.fillRect(w-pr+8,l.y-2,10,4);x.fillStyle=CHC.fg;x.font='bold 12px Arial';x.textAlign='left';x.fillText(l.l,w-pr+22,l.y);});
   return {png:c.toDataURL('image/png'),w,h};}
-const ch=(t,o)=>o?{titulo:t,...o}:null;
+const ch=(t,o)=>o?{titulo:t,...o}:null;const chL=(t,leg,o)=>o?{titulo:t,leg,...o}:null;
 /* ---------- resumos por relatório ---------- */
 function resumoMes(m){const t=finTotais(m);const bud=F.cfg.budget;const comp=new Map();CONTAS.forEach(a=>compConta(a.c,m).forEach(c=>comp.set(c.n,(comp.get(c.n)||0)+c.t)));
   const uso=t.all.b>0?t.all.e/t.all.b:null;
   return {titulo:`Financeiro O&M · ${mesLabel(m)}`,sub:`Executado por conta contábil (LPU + contratos fora da LPU) contra o budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Executado',v:t.all.e},{l:'Budget',v:t.all.b||'—'},{l:t.all.b&&t.all.e>t.all.b?'Acima do budget':'Saldo',v:t.all.b?Math.abs(t.all.b-t.all.e):'—',tone:t.all.b?(t.all.e>t.all.b?'bad':'ok'):''},{l:'% do budget',v:uso==null?'—':uso,fmt:'pct',tone:uso==null?'':uso>1?'bad':'ok'},{l:'CAPEX / OPEX',v:t.all.e?`${Math.round(t.capex.e/t.all.e*100)}% / ${Math.round(t.opex.e/t.all.e*100)}%`:'—'}],
-    charts:[ch('Executado × budget por conta contábil',chartHBars(CONTAS.map(a=>({l:a.c+' · '+a.n,v:execConta(a.c,m).total,b:Number(((bud.contas||{})[a.c]||{})[m])||0})),{lw:330})),
-      ch('Quanto cada terceiro recebeu no mês',chartHBars([...comp.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v),{cor:CHC.opex,max:15})),
+    charts:[chL('Executado × budget por conta contábil','Cada linha é uma conta: o trilho cinza é o budget do mês, a barra verde é o que já foi executado. Barra vermelha = a conta passou do budget.',chartHBars(CONTAS.map(a=>({l:a.c+' · '+a.n,v:execConta(a.c,m).total,b:Number(((bud.contas||{})[a.c]||{})[m])||0})),{lw:330})),
+      chL('Quanto cada terceiro recebeu no mês','Soma de LPU + contratos fora da LPU de cada terceiro, em todas as contas.',chartHBars([...comp.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v),{cor:CHC.opex,max:15})),
       ch('Itens da LPU que mais pesam no mês (top 12)',chartHBars(aggItens(lpuMes(m)).sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:12,lw:380,cor:CHC.capex}))]};}
 function resumoGeral(G,ano){const A=G.acc;const L=G.ms.map(mesCurto);
   return {titulo:`Financeiro O&M · ${F.gsel&&F.gsel.size?G.ms.map(mesCurto).join(', '):'ano '+ano}`,sub:`Evolução mensal do executado, CAPEX, OPEX e budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
@@ -3286,12 +3312,14 @@ function resumoLpu(rels,titulo){const tot=rels.reduce((s,r)=>s+(r.total||0),0);c
   return {titulo:titulo||'Relatórios de LPU',sub:`${rels.length} relatório(s) · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Total da LPU',v:tot},{l:'Relatórios',v:String(rels.length)},{l:'Terceiros',v:String(ter.length)},{l:'Ticket médio',v:rels.length?tot/rels.length:0},{l:'Maior terceiro',v:ter[0]?ter[0].l:'—',nota:ter[0]?brl(ter[0].v)+' · '+Math.round(ter[0].v/tot*100)+'%':''}],
     charts:[ch('Por terceiro',chartHBars(ter,{max:15})),ch('Por conta contábil',chartHBars(by(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),{cor:CHC.capex,lw:330})),ch('Por cidade',chartHBars(by(r=>r.cidade),{cor:CHC.opex,max:12})),ch('Itens que mais pesam (top 12)',chartHBars(aggItens(rels).sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:12,lw:380,cor:CHC.capex}))]};}
-function resumoItens(rows,per){const tot=rows.reduce((s,x)=>s+x.tot,0);const div=rows.filter(x=>x.max-x.min>0.005).length;
+function resumoItens(rows,per,rels){const tot=rows.reduce((s,x)=>s+x.tot,0);const div=rows.filter(x=>x.max-x.min>0.005).length;
   return {titulo:'Itens da LPU · '+per,sub:`Itens somados de todos os relatórios do período · gerado em ${new Date().toLocaleString('pt-BR')}`,
     kpis:[{l:'Itens diferentes',v:String(rows.length)},{l:'Vezes lançados',v:String(rows.reduce((s,x)=>s+x.vezes,0))},{l:'Valor total',v:tot},{l:'Preço variou',v:String(div),tone:div?'bad':'',nota:div?'itens com preço diferente entre lançamentos':''}],
     charts:[ch('Itens que mais pesam no valor (top 15)',chartHBars(rows.slice().sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:15,lw:380})),
+      ...(rels?chartsPorConta(rels):[]),
       ch('Itens mais usados (vezes lançados, top 15)',(()=>{const r=chartHBars(rows.slice().sort((a,b)=>b.vezes-a.vezes).map(x=>({l:x.c+' · '+x.d,v:x.vezes})),{max:15,lw:380,cor:CHC.opex,raw:true});return r;})())],
     nota:'Valores do segundo gráfico são quantidade de vezes, não R$.'};}
+function chartsPorConta(rels){return itensPorConta(rels).slice(0,8).map(k=>chL('Mais usados · '+(k.c?k.c+' · ':'')+k.n,`${k.L.length} itens · ${brl(k.tot)} na conta · número de vezes lançados (top 8)`,chartHBars(k.L.slice().sort((a,b)=>b.vezes-a.vezes).map(x=>({l:x.c+' · '+x.d,v:x.vezes})),{max:8,lw:420,cor:CHC.opex,raw:true})));}
 
 /* ================= views ================= */
 let curView='dash';
