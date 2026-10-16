@@ -2307,7 +2307,7 @@ const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({
 const lpuConta=(code,m)=>lpuMes(m).filter(r=>r.conta===code).reduce((s,r)=>s+(r.total||0),0);
 function compConta(code,m){const o=new Map();const add=(k,v,tipo)=>{if(!v)return;const x=o.get(k)||{n:k,lpu:0,ctr:0};x[tipo]+=v;o.set(k,x);};
   lpuMes(m).filter(r=>r.conta===code).forEach(r=>add(r.empresa||'(sem terceiro)',r.total||0,'lpu'));
-  const TL=(F.cfg.terceiros||{}).lista||{};contratosMes(m).filter(c=>c.conta===code).forEach(c=>add(c.terc&&TL[c.terc]?TL[c.terc].nome:c.nome,ctrCalc(c,m).total,'ctr'));
+  const TL=(F.cfg.terceiros||{}).lista||{};contratosMes(m).filter(c=>c.conta===code).forEach(c=>{const h=c.terc&&TL[c.terc]?{t:TL[c.terc]}:terMatch({empresa:c.nome});add(h&&h.t?h.t.nome:c.nome,ctrCalc(c,m).total,'ctr');});
   return [...o.values()].map(x=>({...x,t:x.lpu+x.ctr})).sort((a,b)=>b.t-a.t);}
 function execConta(code,m){const base=((F.cfg.budget.base||{})[code]||{})[m];const pdf=lpuConta(code,m);const usaBase=base!=null&&base!=='';
   const lpu=usaBase?Number(base):pdf;const ctr=ctrConta(code,m);return {lpu,pdf,base:usaBase?Number(base):null,ctr,total:lpu+ctr};}
