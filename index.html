@@ -749,6 +749,10 @@ table.it td:nth-child(2){min-width:300px;max-width:440px}table.it tbody tr[data-
 .num.warnv{color:var(--serious);font-weight:600}.it-wrap{max-height:70vh;overflow:auto}.it-wrap thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 .mdrop{position:relative}.mdrop summary{list-style:none;cursor:pointer;border:1px solid var(--line-2);border-radius:6px;padding:7px 12px;background:var(--surface);display:inline-flex;gap:6px;align-items:center;max-width:520px}.mdrop summary::-webkit-details-marker{display:none}
 .mdrop-p{position:absolute;z-index:30;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;box-shadow:var(--shadow,0 8px 24px rgba(0,0,0,.12));padding:8px 12px;display:grid;gap:4px;min-width:220px;max-height:360px;overflow:auto}.mdrop-p label{display:flex;gap:8px;align-items:center;padding:3px 0;cursor:pointer}
+.comp{margin-top:12px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:6px}.comp-h{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.comp-r{display:grid;grid-template-columns:minmax(140px,240px) 1fr 120px 44px minmax(120px,auto);gap:10px;align-items:center;font-size:13.5px}.comp-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-b{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}.comp-b i{display:block;height:100%;background:var(--ink);border-radius:4px}.comp-r b{text-align:right}
+@media (max-width:700px){.comp-r{grid-template-columns:1fr auto}.comp-b,.comp-r>.hint:last-child{grid-column:1/-1}}
 .rq-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px}
 .rq-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}.rq-bar i{display:block;height:100%}
 .rq-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--fg-2)}.rq-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -2221,7 +2225,7 @@ async function relXlsx(rows,res){const head=['Data','Nº da notificação','Tipo
   if(window.XLSX){const wb=XLSX.utils.book_new();const ws1=XLSX.utils.aoa_to_sheet([['Net Turbo — Relatório de atuação em notificações de rede'],['Período',relPeriodo()],['Cidades',relCidades()],['Emitido em',fmtData(hoje())],[],['Resumo','Quantidade'],...res]);ws1['!cols']=[{wch:34},{wch:60}];
     const ws2=XLSX.utils.aoa_to_sheet([head,...relLinhas(rows)]);ws2['!cols']=[{wch:11},{wch:22},{wch:22},{wch:22},{wch:22},{wch:16}];ws2['!autofilter']={ref:`A1:F${rows.length+1}`};
     XLSX.utils.book_append_sheet(wb,ws1,'Resumo');XLSX.utils.book_append_sheet(wb,ws2,'Notificações');
-    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});avisa(await salvar(relNome('xlsx'),new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),'Excel gerado','Não foi possível gerar o Excel');}
+    await xlsSave(wb,relNome('xlsx'));}
   else avisa(await salvar(relNome('csv'),csvOf([head,...relLinhas(rows)]),'text/csv'),'CSV gerado','Não foi possível gerar o arquivo');}
 async function relKmz(rows){const pts=rows.filter(i=>i.lat!=null);if(!pts.length){toast('Nenhuma notificação com localização no filtro');return;}
   const cor={Atendida:'ff4c8a1f',Improdutiva:'ff0079b7',Cancelada:'ff9d948a','Não atendida':'ff2b2bc4',Pendente:'ff00a9e8'};const x=s=>esc(s);
@@ -2253,7 +2257,7 @@ function finRefresh(){if(curView==='fin'){const b=$('#fin-body');if(typing(b)){b
 function mesesOpts(extra){const set=new Set(extra||[]);const d=new Date();d.setMonth(d.getMonth()+1,1);for(let i=0;i<15;i++){set.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d.setMonth(d.getMonth()-1,1);}return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().reverse();}
 function xlsSheet(aoa,widths,money){const ws=XLSX.utils.aoa_to_sheet(aoa);if(widths)ws['!cols']=widths.map(w=>({wch:w}));
   if(money){const rg=XLSX.utils.decode_range(ws['!ref']);for(let r=1;r<=rg.e.r;r++)for(const c of money){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell&&cell.t==='n')cell.z='#,##0.00';}}return ws;}
-async function xlsSave(wb,nome){const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});avisa(await salvar(nome,new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),'Excel gerado','Não foi possível gerar o Excel');}
+
 
 function fbars(sel,entries,tone,fmt){const el=$(sel);if(!el)return;const mx=Math.max(1,...entries.map(e=>e[1]));el.innerHTML=entries.length?entries.map(([k,v])=>`<div class="hbar fb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div><div class="b" style="width:${Math.max(1.5,v/mx*100)}%;background:var(${tone})"></div></div><span class="n">${fmt?fmt(v):fmtN(v)}</span></div>`).join(''):'<p class="hint">Sem dados no período.</p>';}
 /* ---------- contratos fora da LPU ---------- */
@@ -2294,6 +2298,10 @@ function lpuDup(r,k){if(r.dupOk)return null;const L=F.lidos;
 /* ---------- LPU lida dos PDFs ---------- */
 const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({...terRes(r),id})).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
 const lpuConta=(code,m)=>lpuMes(m).filter(r=>r.conta===code).reduce((s,r)=>s+(r.total||0),0);
+function compConta(code,m){const o=new Map();const add=(k,v,tipo)=>{if(!v)return;const x=o.get(k)||{n:k,lpu:0,ctr:0};x[tipo]+=v;o.set(k,x);};
+  lpuMes(m).filter(r=>r.conta===code).forEach(r=>add(r.empresa||'(sem terceiro)',r.total||0,'lpu'));
+  const TL=(F.cfg.terceiros||{}).lista||{};contratosMes(m).filter(c=>c.conta===code).forEach(c=>add(c.terc&&TL[c.terc]?TL[c.terc].nome:c.nome,ctrCalc(c,m).total,'ctr'));
+  return [...o.values()].map(x=>({...x,t:x.lpu+x.ctr})).sort((a,b)=>b.t-a.t);}
 function execConta(code,m){const base=((F.cfg.budget.base||{})[code]||{})[m];const pdf=lpuConta(code,m);const usaBase=base!=null&&base!=='';
   const lpu=usaBase?Number(base):pdf;const ctr=ctrConta(code,m);return {lpu,pdf,base:usaBase?Number(base):null,ctr,total:lpu+ctr};}
 function finTotais(m){const t={all:{b:0,e:0},capex:{b:0,e:0},opex:{b:0,e:0}};const bud=F.cfg.budget.contas||{};
@@ -2410,7 +2418,7 @@ function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visua
   const money=Array.from({length:n+1},(_,i)=>i+2);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[44,10,...G.ms.map(()=>14),16],money),'Executado por mês');
   const bud=F.cfg.budget.contas||{};const B=[H,...CONTAS.map(a=>{const v=G.ms.map(m=>Number((bud[a.c]||{})[m])||0);return [a.c+' · '+a.n,a.g.toUpperCase(),...v,sum(v)];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(B,[44,10,...G.ms.map(()=>14),16],money),'Budget por mês');
-  xlsSave(wb,`financeiro_om_${F.gsel&&F.gsel.size?G.ms.join('_'):'geral_'+ano}.xlsx`);}
+  xlsSave(wb,`financeiro_om_${F.gsel&&F.gsel.size?G.ms.join('_'):'geral_'+ano}.xlsx`,{resumo:resumoGeral(G,ano)});}
 /* ---------- aba: conta contábil ---------- */
 function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=canWrite===false?'disabled':'';
   const bm=c=>((bud.contas||{})[c]||{})[m];const semBud=!CONTAS.some(a=>Number(bm(a.c))>0);const bopen=F.bedit||(semBud&&canWrite!==false&&F.bedit!==0);
@@ -2427,6 +2435,9 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
           <label class="fld"><span>Budget de ${mesCurto(m)} (R$)</span><input type="text" inputmode="decimal" data-k="b" value="${b||''}" ${ro}></label>
           <label class="fld"><span>LPU pela planilha de acompanhamento (R$)</span><input type="text" inputmode="decimal" data-k="base" value="${x.base??''}" placeholder="vazio = usa os PDFs lidos" ${ro}></label>
           <div class="fld"><span>LPU lida dos PDFs</span><div class="mono" style="padding:7px 0">${brl(x.pdf)} · ${lpuMes(m).filter(r=>r.conta===a.c).length} relatório(s)</div></div></div>
+          ${(()=>{const cp=compConta(a.c,m);const tt=cp.reduce((s,x)=>s+x.t,0);if(!cp.length)return '<p class="hint" style="margin:10px 0 0">Nenhum terceiro lançado nesta conta no mês.</p>';const mx=Math.max(...cp.map(x=>x.t));
+            return `<div class="comp"><div class="comp-h"><b>Composição por terceiro</b><span class="hint">${cp.length} terceiro(s) · ${brl(tt)}${x.base!=null?' · a LPU desta conta está pela planilha de acompanhamento ('+brl(x.base)+'); o detalhe abaixo vem dos PDFs lidos':''}</span></div>
+              ${cp.map(c=>`<div class="comp-r"><span class="comp-n" title="${esc(c.n)}">${esc(c.n)}</span><span class="comp-b"><i style="width:${(c.t/mx*100).toFixed(1)}%"></i></span><b class="mono">${brl(c.t)}</b><span class="hint mono">${tt?Math.round(c.t/tt*100):0}%</span><span class="hint">${[c.lpu?'LPU '+brl0(c.lpu):'',c.ctr?'contratos '+brl0(c.ctr):''].filter(Boolean).join(' + ')}</span></div>`).join('')}</div>`;})()}
           <label class="fld" style="margin-top:10px"><span>Comentário</span><textarea data-k="com" rows="2" placeholder="Ex.: contrato reajustado, obra extra…" ${ro}>${esc(com)}</textarea></label>
           <div class="row" style="margin-top:10px"><button class="btn primary small" data-save ${ro}>Salvar</button><span class="hint">O executado soma a LPU com os contratos fora da LPU vinculados a esta conta.</span></div></div>`:''}</div>`;}).join('')}</div>
    <p class="hint">Barra verde = saldo que ainda cabe no budget; se o executado passar do budget, a barra fica vermelha. O valor de LPU de cada conta vem dos PDFs lidos na aba "LPU · leitura de PDF"; quando o campo "LPU pela planilha de acompanhamento" está preenchido, ele é usado no lugar (é o caso dos meses de abril a setembro de 2026, lançados antes do leitor existir).</p>`;
@@ -2609,13 +2620,13 @@ function finLpu(box,m){const relsAll=F.lall?Object.entries(F.lpu).map(([id,r])=>
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async e=>{e.stopPropagation();if(noEdit())return;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='Confirmar exclusão';b.style.color='var(--critical)';setTimeout(()=>{b.dataset.ok='';b.textContent='Excluir';b.style.color='';},4000);return;}
     try{await db.doc('lpu/'+b.dataset.del).delete();toast('Relatório excluído');}catch(er){handleWriteErr(er);}});
   if(L.length){$('#lpu-clear').onclick=()=>{F.lidos=[];F.lendo='';renderFin();};
-    $('#lpu-xls-l').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(L.map(terRes)),`lpu_leitura_${hoje()}.xlsx`);};
+    $('#lpu-xls-l').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(L.map(terRes)),`lpu_leitura_${hoje()}.xlsx`,{resumo:resumoLpu(L.map(terRes),'LPU · leitura de '+new Date().toLocaleDateString('pt-BR'))});};
     $('#lpu-save').onclick=async()=>{if(noEdit())return;const sel=L.filter(r=>r.sel);if(!sel.length){toast('Selecione ao menos um relatório');return;}const b=$('#lpu-save');b.disabled=true;let ok=0;
       const pend=sel.filter(r=>{const x=terRes(r);return !x.empresa||!x.conta;});if(pend.length){toast(`${pend.length} relatório(s) sem terceiro ou conta: escolha antes de salvar`);b.disabled=false;return;}
       let di=0;for(const r0 of sel){const r={...r0,conta:terRes(r0).conta};const {id:id0,sel:_s,aviso,ia,dupOk,...d}=r;const id=dupOk?id0+'-d'+Date.now().toString(36)+(di++):id0;if(dupOk)d.repetidaAprovada=true;try{await db.doc('lpu/'+id).set({...d,lidoEm:new Date().toISOString(),...(myId?{lidoPor:myId}:{}),...(ia?{ia:true}:{})});ok++;}catch(e){handleWriteErr(e);break;}}
       const ms=[...new Set(sel.map(r=>r.mes))].sort();F.lidos=L.filter(r=>!r.sel);if(ok){toast(`${ok} relatório(s) salvo(s)`);if(!ms.includes(F.mes))F.mes=ms[ms.length-1];}renderFin();};}
   if(rels.length){fbars('#lpu-r1',rank(r=>r.empresa),'--s1',brl0);fbars('#lpu-r2',rank(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),'--s4',brl0);fbars('#lpu-r3',rank(r=>r.cidade),'--s3',brl0);
-    $('#lpu-xls-m').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(relsF),`lpu_atividades_${m}${F.lt?'_'+norm(F.lt).replace(/ /g,'-'):''}.xlsx`);};
+    $('#lpu-xls-m').onclick=()=>{if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}xlsSave(lpuWb(relsF),`lpu_atividades_${m}${F.lt?'_'+norm(F.lt).replace(/ /g,'-'):''}.xlsx`,{resumo:resumoLpu(relsF,'LPU · '+(F.lall?'todos os meses':mesLabel(m))+(F.lt?' · '+F.lt:''))});};
     $('#lpu-ft').onchange=e=>{F.lt=e.target.value;renderFin();};
     box.querySelectorAll('[data-ls]').forEach(c=>{c.onclick=e=>e.stopPropagation();c.onchange=()=>{c.checked?F.lsel.add(c.dataset.ls):F.lsel.delete(c.dataset.ls);renderFin();};});
     const la=$('#ls-all');if(la)la.onchange=()=>{relsF.forEach(r=>la.checked?F.lsel.add(r.id):F.lsel.delete(r.id));renderFin();};
@@ -2673,7 +2684,7 @@ function finItens(box,m){const {rels,terOpts,L}=itensDados(m);if(F.it&&!terOpts.
     const ws=xlsSheet(A,[11,60,10,12,12,16,11,11,14,12],[5,6,7,8]);ws['!autofilter']={ref:`A1:J${A.length}`};XLSX.utils.book_append_sheet(wb,ws,'Itens mais usados');
     const P=[['Código','Descrição','Prestador','Vezes','Quantidade','V. unit (mediana)','Mín.','Máx.','Valor total']];rows.forEach(x=>x.prest.forEach(p=>P.push([x.c,x.d,p.n,p.vezes,p.qtd,p.med,p.min,p.max,p.tot])));
     XLSX.utils.book_append_sheet(wb,xlsSheet(P,[11,50,30,8,12,16,11,11,14],[5,6,7,8]),'Por prestador');
-    xlsSave(wb,`itens_lpu_${F.ip==='mes'?m:F.ip==='ano'?m.slice(0,4):'historico'}.xlsx`);};}
+    xlsSave(wb,`itens_lpu_${F.ip==='mes'?m:F.ip==='ano'?m.slice(0,4):'historico'}.xlsx`,{resumo:resumoItens(rows,F.ip==='mes'?mesLabel(m):F.ip==='ano'?'ano '+m.slice(0,4):'todo o histórico')});};}
 
 /* ---------- aba: terceiros e técnicos ---------- */
 function tercGastos(t){const por={};const add=(m,k,v)=>{if(!m||!v)return;const o=por[m]=por[m]||{lpu:0,ctr:0};o[k]+=v;};
@@ -2839,7 +2850,7 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   const K=[['Contrato','Tipo','Conta contábil','Base (R$)','Bonificações (R$)','Excedente (R$)','Desconto (R$)','Motivo do desconto','Total (R$)','Atividades','Mês fechado'],...contratosMes(m).map(c=>{const x=ctrCalc(c,m);return [c.nome,TIPO_CTR[c.tipo]||'',c.conta,x.base,x.bonus,x.exc,-x.desc,x.md.descMotivo||'',x.total,c.tipo==='meta'?(x.md.atividades||0):'',x.md.closed?'sim':'não'];})];
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,14,14,16,14,14,11,12],[3,4,5,6]),'Contratos fora da LPU');
   const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');}
-  xlsSave(wb,`financeiro_om_${m}.xlsx`);}
+  xlsSave(wb,`financeiro_om_${m}.xlsx`,{resumo:resumoMes(m)});}
 function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
   box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano,true)}
    <div class="row" style="margin-top:6px"><h2 style="margin:0;font-size:17px">Mês de ${mesLabel(m)}</h2></div><div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
@@ -3136,7 +3147,7 @@ function ruasBox(open){const bx=$('#ruas-box'),bt=$('#btn-ruas');if(!bx)return;b
 function ruasExcel(){const rows=ruasFiltradas();if(!rows.length){toast('Nenhuma rua no filtro');return;}
   const A=[['Rua','Cidade','Metros de cabo lançados','Descrição','Latitude','Longitude'],...rows.map(r=>[r[0],r[1],r[2],`${r[0]} - ${fmtM(r[2])} de cabos lançados`,r[3],r[4]])];
   if(window.XLSX){const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(A);ws['!cols']=[{wch:44},{wch:22},{wch:14},{wch:60},{wch:11},{wch:11}];ws['!autofilter']={ref:`A1:F${A.length}`};XLSX.utils.book_append_sheet(wb,ws,'Ruas com cabo');
-    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});salvar('ruas_com_cabo.xlsx',new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})).then(r=>avisa(r,'Excel gerado','Não foi possível gerar o Excel'));}
+    xlsSave(wb,'ruas_com_cabo.xlsx');}
   else offer('ruas_com_cabo.csv',csvOf(A));}
 
 /* ---------- consulta de rua: tem cabo? está regularizado? ---------- */
@@ -3180,6 +3191,101 @@ function consultaInit(){const q=$('#rq-q'),c=$('#rq-cid');if(!q)return;
   const fillCid=()=>{if(!S.ruas)return;const cur=c.value;const cs=[...new Set(S.ruas.ruas.map(r=>r[1]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));c.innerHTML='<option value="">Todas as cidades</option>'+cs.map(x=>`<option ${x===cur?'selected':''}>${esc(x)}</option>`).join('');};
   q.oninput=()=>{clearTimeout(q._t);q._t=setTimeout(()=>{RQ.q=q.value;renderConsulta();},200);};c.onchange=()=>{RQ.cid=c.value;renderConsulta();};
   $('#rq-lista').onclick=()=>ruasBox($('#ruas-box').hidden);fillCid();renderConsulta();consultaInit.fill=fillCid;}
+
+/* ================= Excel visual (ExcelJS): cabeçalho na cor da marca, R$, barras de dados, aba Resumo com gráficos ================= */
+const XC={dark:'FF10201A',lime:'FFB2D137',limeL:'FFF1F7DD',zebra:'FFF7F9F5',line:'FFD8DEE3',red:'FFC42B2B',green:'FF2E7D32',fg:'FF15202B',muted:'FF76838F',white:'FFFFFFFF'};
+const RS='"R$" #,##0.00;[Red]-"R$" #,##0.00';
+let EXJ=null;
+function exceljs(){if(window.ExcelJS)return Promise.resolve(window.ExcelJS);if(!EXJ)EXJ=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=window.GOM_EXCELJS||'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';sc.onload=()=>window.ExcelJS?res(window.ExcelJS):rej(new Error('ExcelJS'));sc.onerror=()=>{EXJ=null;rej(new Error('ExcelJS'));};document.head.appendChild(sc);});return EXJ;}
+async function xlsSavePlain(wb,nome){const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});avisa(await salvar(nome,new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),'Excel gerado','Não foi possível gerar o Excel');}
+async function xlsSave(wb,nome,opt){opt=opt||{};let E;try{E=await exceljs();}catch(e){console.error(e);return xlsSavePlain(wb,nome);}
+  try{const X=new E.Workbook();X.creator='Gestão O&M · NetTurbo';X.created=new Date();
+    if(opt.resumo)await resumoSheet(X,opt.resumo);
+    for(const n of wb.SheetNames)xlsStyled(X,opt.resumo&&n==='Resumo'?'Totais':n,wb.Sheets[n]);
+    const buf=await X.xlsx.writeBuffer();avisa(await salvar(nome,new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),'Excel gerado','Não foi possível gerar o Excel');}
+  catch(e){console.error(e);return xlsSavePlain(wb,nome);}}
+const colL=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;};
+function xlsStyled(X,nome,ws){const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});if(!aoa.length)return;
+  const rg=XLSX.utils.decode_range(ws['!ref']);const nc=Math.max(...aoa.map(r=>r.length));const money=new Set();
+  for(let r=1;r<=rg.e.r;r++)for(let c=0;c<=rg.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell&&cell.t==='n'&&cell.z&&/0\.00/.test(cell.z))money.add(c);}
+  const S=X.addWorksheet(String(nome).slice(0,31),{views:[{state:'frozen',ySplit:1,showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+  const widths=(ws['!cols']||[]).map(c=>c&&c.wch);S.columns=Array.from({length:nc},(_,i)=>({width:Math.max(8,Math.min(70,(widths[i]||12)+2))}));
+  aoa.forEach(r=>S.addRow(r.map(v=>v===null?null:v)));
+  const head=S.getRow(1);head.height=26;head.eachCell({includeEmpty:true},(c,i)=>{if(i>nc)return;c.font={bold:true,color:{argb:XC.white},size:10.5};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.dark}};c.alignment={vertical:'middle',horizontal:money.has(i-1)?'right':'left',wrapText:true};c.border={bottom:{style:'medium',color:{argb:XC.lime}}};});
+  let lastData=1;for(let r=2;r<=aoa.length;r++){if(!aoa[r-1]||aoa[r-1].every(v=>v===null||v===''))break;lastData=r;}
+  for(let r=2;r<=aoa.length;r++){const row=S.getRow(r);const first=String(aoa[r-1]&&aoa[r-1][0]||'');const tot=/^(total|executado total|budget$|saldo|capex$|opex$|% do budget)/i.test(first);const empty=!aoa[r-1]||aoa[r-1].every(v=>v===null||v==='');
+    for(let c=1;c<=nc;c++){const cell=row.getCell(c);if(money.has(c-1)&&typeof cell.value==='number')cell.numFmt=RS;
+      cell.alignment={vertical:'middle',horizontal:money.has(c-1)?'right':undefined,wrapText:typeof cell.value==='string'&&cell.value.length>60};
+      if(empty)continue;cell.border={bottom:{style:'hair',color:{argb:XC.line}}};
+      if(tot){cell.font={bold:true,color:{argb:XC.fg}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.limeL}};cell.border={top:{style:'thin',color:{argb:XC.dark}},bottom:{style:'thin',color:{argb:XC.dark}}};}
+      else if(r%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.zebra}};}
+    row.height=18;}
+  if(lastData>1){S.autoFilter={from:'A1',to:colL(nc-1)+'1'};
+    const hdr=aoa[0].map(v=>String(v||''));let bar=hdr.findIndex((h,i)=>money.has(i)&&/^(total|executado|valor total)/i.test(h));if(bar<0)bar=[...money].pop();
+    if(bar!=null&&bar>=0&&lastData>2)S.addConditionalFormatting({ref:`${colL(bar)}2:${colL(bar)}${lastData}`,rules:[{type:'dataBar',priority:1,cfvo:[{type:'num',value:0},{type:'max'}],color:{argb:'FF9BC53D'},gradient:false}]});
+    hdr.forEach((h,i)=>{if(money.has(i)&&/saldo|resultado|diferen/i.test(h))S.addConditionalFormatting({ref:`${colL(i)}2:${colL(i)}${aoa.length}`,rules:[{type:'cellIs',priority:2,operator:'lessThan',formulae:[0],style:{font:{color:{argb:XC.red},bold:true}}}]});});}}
+/* ---------- aba Resumo: título, cartões de números, gráficos ---------- */
+async function resumoSheet(X,R){const S=X.addWorksheet('Resumo',{views:[{showGridLines:false}],properties:{tabColor:{argb:XC.lime}},pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+  S.columns=Array.from({length:12},()=>({width:14}));
+  S.mergeCells('A1:L1');const t=S.getCell('A1');t.value=R.titulo;t.font={bold:true,size:18,color:{argb:XC.white}};t.fill={type:'pattern',pattern:'solid',fgColor:{argb:XC.dark}};t.alignment={vertical:'middle',indent:1};S.getRow(1).height=34;
+  S.mergeCells('A2:L2');const st=S.getCell('A2');st.value=R.sub||'';st.font={size:10,color:{argb:XC.muted},italic:true};st.alignment={indent:1};S.getRow(2).height=18;
+  const K=R.kpis||[];const span=Math.max(2,Math.floor(12/Math.max(1,K.length)));
+  K.forEach((k,i)=>{const c0=i*span+1,c1=c0+span-1;S.mergeCells(4,c0,4,c1);S.mergeCells(5,c0,5,c1);S.mergeCells(6,c0,6,c1);
+    const L=S.getCell(4,c0),V=S.getCell(5,c0),N=S.getCell(6,c0);L.value=k.l.toUpperCase();V.value=k.v;N.value=k.nota||'';
+    const tone=k.tone==='bad'?XC.red:k.tone==='ok'?XC.green:XC.fg;
+    L.font={size:9,bold:true,color:{argb:XC.muted}};V.font={size:17,bold:true,color:{argb:tone}};N.font={size:9,color:{argb:tone===XC.fg?XC.muted:tone}};
+    if(typeof k.v==='number')V.numFmt=k.fmt==='pct'?'0.0%':RS;
+    for(let r=4;r<=6;r++){const c=S.getCell(r,c0);c.alignment={vertical:'middle',indent:1};for(let cc=c0;cc<=c1;cc++){const x=S.getCell(r,cc);x.fill={type:'pattern',pattern:'solid',fgColor:{argb:i%2?XC.zebra:XC.limeL}};}}
+    for(let cc=c0;cc<=c1;cc++){S.getCell(4,cc).border={top:{style:'medium',color:{argb:k.tone==='bad'?XC.red:XC.lime}}};}});
+  S.getRow(5).height=30;
+  let row=8;for(const ch of R.charts||[]){if(!ch||!ch.png)continue;S.getCell(row,1).value=ch.titulo;S.getCell(row,1).font={bold:true,size:12,color:{argb:XC.fg}};
+    const id=X.addImage({base64:ch.png,extension:'png'});S.addImage(id,{tl:{col:0,row:row},ext:{width:ch.w||900,height:ch.h||380}});row+=Math.ceil((ch.h||380)/20)+3;}
+  if(R.nota){S.getCell(row,1).value=R.nota;S.getCell(row,1).font={size:9,italic:true,color:{argb:XC.muted}};}}
+/* ---------- gráficos desenhados em imagem (para o Excel) ---------- */
+const CHC={fg:'#15202b',muted:'#76838f',grid:'#e3e8ec',lime:'#8fb22a',dark:'#10201a',capex:'#c98500',opex:'#2a78d6',bud:'#76838f',red:'#c42b2b'};
+function cnv(w,h){const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const x=c.getContext('2d');x.scale(2,2);x.fillStyle='#fff';x.fillRect(0,0,w,h);x.font='13px Arial';return [c,x];}
+const kfmt=v=>Math.abs(v)>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':Math.abs(v)>=1e3?Math.round(v/1e3).toLocaleString('pt-BR')+' mil':Math.round(v).toLocaleString('pt-BR');
+function chartHBars(items,o){o=o||{};items=items.filter(i=>i.v>0||(i.b||0)>0).slice(0,o.max||12);const w=900,rowH=30,h=Math.max(120,items.length*rowH+50);const [c,x]=cnv(w,h);if(!items.length)return null;
+  const lw=o.lw||300,mx=Math.max(1,...items.map(i=>Math.max(i.v,i.b||0)))*1.12,X0=lw+10,X1=w-190,sx=v=>X0+(X1-X0)*v/mx;
+  items.forEach((it,k)=>{const y=20+k*rowH;x.fillStyle=CHC.fg;x.textAlign='right';x.textBaseline='middle';let lab=it.l;while(x.measureText(lab).width>lw-6&&lab.length>4)lab=lab.slice(0,-2);if(lab!==it.l)lab+='…';x.fillText(lab,lw,y+10);
+    const over=it.b&&it.v>it.b;x.fillStyle=over?CHC.red:(o.cor||CHC.lime);x.beginPath();x.roundRect?x.roundRect(X0,y+2,Math.max(2,sx(it.v)-X0),16,[0,4,4,0]):x.rect(X0,y+2,Math.max(2,sx(it.v)-X0),16);x.fill();
+    if(it.b){x.strokeStyle=CHC.dark;x.lineWidth=2;x.setLineDash([]);x.beginPath();x.moveTo(sx(it.b),y-1);x.lineTo(sx(it.b),y+21);x.stroke();}
+    x.fillStyle=over?CHC.red:CHC.fg;x.textAlign='left';x.font='bold 12px Arial';const tv=(o.raw?'':'R$ ')+kfmt(it.v)+(it.b?'  /  '+kfmt(it.b):'');x.fillText(tv,X1+14,y+10);x.font='13px Arial';});
+  if(items.some(i=>i.b)){x.fillStyle=CHC.muted;x.textAlign='left';x.font='11px Arial';x.fillText('Barra = executado · traço escuro = budget · vermelho = acima do budget',X0,h-12);}
+  return {png:c.toDataURL('image/png'),w,h};}
+function chartLines(labels,series){const w=900,h=360,pl=70,pr=110,pt=20,pb=40;const [c,x]=cnv(w,h);if(!labels.length)return null;
+  const mx=Math.max(1,...series.flatMap(s=>s.vals.filter(v=>v!=null)))*1.1;const sx=i=>labels.length===1?(pl+(w-pr))/2:pl+i*(w-pl-pr)/(labels.length-1);const sy=v=>pt+(h-pt-pb)*(1-v/mx);
+  x.strokeStyle=CHC.grid;x.lineWidth=1;x.fillStyle=CHC.muted;x.font='11px Arial';x.textAlign='right';x.textBaseline='middle';for(let g=0;g<=4;g++){const v=mx*g/4;x.beginPath();x.moveTo(pl,sy(v));x.lineTo(w-pr,sy(v));x.stroke();x.fillText(kfmt(v),pl-8,sy(v));}
+  x.textAlign='center';labels.forEach((l,i)=>x.fillText(l,sx(i),h-pb+18));
+  const labs=[];series.forEach(s=>{const pts=s.vals.map((v,i)=>v==null?null:[sx(i),sy(v)]).filter(Boolean);if(!pts.length)return;x.strokeStyle=s.c;x.lineWidth=s.w||2.5;x.setLineDash(s.dash||[]);x.beginPath();pts.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.stroke();x.setLineDash([]);
+    pts.forEach(p=>{x.fillStyle=s.c;x.beginPath();x.arc(p[0],p[1],4,0,7);x.fill();x.strokeStyle='#fff';x.lineWidth=1.5;x.stroke();});labs.push({y:pts[pts.length-1][1],l:s.l,c:s.c});});
+  labs.sort((a,b)=>a.y-b.y);for(let i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<15)labs[i].y=labs[i-1].y+15;
+  labs.forEach(l=>{x.fillStyle=l.c;x.fillRect(w-pr+8,l.y-2,10,4);x.fillStyle=CHC.fg;x.font='bold 12px Arial';x.textAlign='left';x.fillText(l.l,w-pr+22,l.y);});
+  return {png:c.toDataURL('image/png'),w,h};}
+const ch=(t,o)=>o?{titulo:t,...o}:null;
+/* ---------- resumos por relatório ---------- */
+function resumoMes(m){const t=finTotais(m);const bud=F.cfg.budget;const comp=new Map();CONTAS.forEach(a=>compConta(a.c,m).forEach(c=>comp.set(c.n,(comp.get(c.n)||0)+c.t)));
+  const uso=t.all.b>0?t.all.e/t.all.b:null;
+  return {titulo:`Financeiro O&M · ${mesLabel(m)}`,sub:`Executado por conta contábil (LPU + contratos fora da LPU) contra o budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
+    kpis:[{l:'Executado',v:t.all.e},{l:'Budget',v:t.all.b||'—'},{l:t.all.b&&t.all.e>t.all.b?'Acima do budget':'Saldo',v:t.all.b?Math.abs(t.all.b-t.all.e):'—',tone:t.all.b?(t.all.e>t.all.b?'bad':'ok'):''},{l:'% do budget',v:uso==null?'—':uso,fmt:'pct',tone:uso==null?'':uso>1?'bad':'ok'},{l:'CAPEX / OPEX',v:t.all.e?`${Math.round(t.capex.e/t.all.e*100)}% / ${Math.round(t.opex.e/t.all.e*100)}%`:'—'}],
+    charts:[ch('Executado × budget por conta contábil',chartHBars(CONTAS.map(a=>({l:a.c+' · '+a.n,v:execConta(a.c,m).total,b:Number(((bud.contas||{})[a.c]||{})[m])||0})),{lw:330})),
+      ch('Quanto cada terceiro recebeu no mês',chartHBars([...comp.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v),{cor:CHC.opex,max:15}))]};}
+function resumoGeral(G,ano){const A=G.acc;const L=G.ms.map(mesCurto);
+  return {titulo:`Financeiro O&M · ${F.gsel&&F.gsel.size?G.ms.map(mesCurto).join(', '):'ano '+ano}`,sub:`Evolução mensal do executado, CAPEX, OPEX e budget · gerado em ${new Date().toLocaleString('pt-BR')}`,
+    kpis:[{l:'Total executado',v:A.all.e},{l:'Orçado (meses com budget)',v:A.all.b||'—'},{l:'Utilizado do budget',v:A.all.b?A.all.eb/A.all.b:'—',fmt:'pct',tone:A.all.b?(A.all.eb>A.all.b?'bad':'ok'):''},{l:'Média mensal',v:G.ms.length?A.all.e/G.ms.length:0},{l:'CAPEX / OPEX',v:A.all.e?`${Math.round(A.capex.e/A.all.e*100)}% / ${Math.round(A.opex.e/A.all.e*100)}%`:'—'}],
+    charts:[ch('Evolução mensal',chartLines(L,[{l:'Total',c:CHC.lime,vals:G.tot.map(t=>t.all.e),w:3},{l:'CAPEX',c:CHC.capex,vals:G.tot.map(t=>t.capex.e)},{l:'OPEX',c:CHC.opex,vals:G.tot.map(t=>t.opex.e)},{l:'Budget',c:CHC.bud,vals:G.tot.map(t=>t.all.b>0?t.all.b:null),dash:[6,4]}])),
+      ch('Executado no período por conta contábil',chartHBars(G.rows.map(r=>({l:r.a.c+' · '+r.a.n,v:r.v.reduce((s,x)=>s+x.e,0)})).sort((a,b)=>b.v-a.v),{lw:330}))]};}
+function resumoLpu(rels,titulo){const tot=rels.reduce((s,r)=>s+(r.total||0),0);const by=f=>{const o=new Map();rels.forEach(r=>{const k=f(r)||'(não identificado)';o.set(k,(o.get(k)||0)+(r.total||0));});return [...o.entries()].map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v);};
+  const ter=by(r=>r.empresa);
+  return {titulo:titulo||'Relatórios de LPU',sub:`${rels.length} relatório(s) · gerado em ${new Date().toLocaleString('pt-BR')}`,
+    kpis:[{l:'Total da LPU',v:tot},{l:'Relatórios',v:String(rels.length)},{l:'Terceiros',v:String(ter.length)},{l:'Ticket médio',v:rels.length?tot/rels.length:0},{l:'Maior terceiro',v:ter[0]?ter[0].l:'—',nota:ter[0]?brl(ter[0].v)+' · '+Math.round(ter[0].v/tot*100)+'%':''}],
+    charts:[ch('Por terceiro',chartHBars(ter,{max:15})),ch('Por conta contábil',chartHBars(by(r=>r.conta?r.conta+' · '+((CONTA[r.conta]||{}).n||''):''),{cor:CHC.capex,lw:330})),ch('Por cidade',chartHBars(by(r=>r.cidade),{cor:CHC.opex,max:12}))]};}
+function resumoItens(rows,per){const tot=rows.reduce((s,x)=>s+x.tot,0);const div=rows.filter(x=>x.max-x.min>0.005).length;
+  return {titulo:'Itens da LPU · '+per,sub:`Itens somados de todos os relatórios do período · gerado em ${new Date().toLocaleString('pt-BR')}`,
+    kpis:[{l:'Itens diferentes',v:String(rows.length)},{l:'Vezes lançados',v:String(rows.reduce((s,x)=>s+x.vezes,0))},{l:'Valor total',v:tot},{l:'Preço variou',v:String(div),tone:div?'bad':'',nota:div?'itens com preço diferente entre lançamentos':''}],
+    charts:[ch('Itens que mais pesam no valor (top 15)',chartHBars(rows.slice().sort((a,b)=>b.tot-a.tot).map(x=>({l:x.c+' · '+x.d,v:x.tot})),{max:15,lw:380})),
+      ch('Itens mais usados (vezes lançados, top 15)',(()=>{const r=chartHBars(rows.slice().sort((a,b)=>b.vezes-a.vezes).map(x=>({l:x.c+' · '+x.d,v:x.vezes})),{max:15,lw:380,cor:CHC.opex,raw:true});return r;})())],
+    nota:'Valores do segundo gráfico são quantidade de vezes, não R$.'};}
 
 /* ================= views ================= */
 let curView='dash';
