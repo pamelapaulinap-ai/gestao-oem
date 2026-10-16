@@ -6,6 +6,7 @@ const C=window.GOM_CONFIG;if(!C||!C.url||!C.key||!window.supabase)return;
 window.GOM_TILES=true;
 const sb=window.supabase.createClient(C.url,C.key,{auth:{persistSession:true,autoRefreshToken:true}});
 const clone=o=>JSON.parse(JSON.stringify(o));
+const limpa=v=>typeof v==='string'?v.replace(/\u0000/g,'').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,''):Array.isArray(v)?v.map(limpa):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,x])=>[limpa(k),limpa(x)])):v;
 const collOf=p=>p.slice(0,p.lastIndexOf('/'));
 const err=e=>{const m=String(e&&(e.message||e.code)||e);const o=new Error(m);
   o.code=/not_found/i.test(m)?'not_found':/row-level security|permission|JWT|not authorized/i.test(m)?'invalid_argument':/too large|payload/i.test(m)?'too_large':'unavailable';return o;};
@@ -53,8 +54,8 @@ let chan=null;function realtime(){if(chan)return;chan=sb.channel('docs-'+Math.ra
 async function after(path){emitDoc(path);emitColl(collOf(path));}
 function docRef(path){return {path,id:path.split('/').pop(),
   get:async()=>{await authed;const {data,error}=await sb.from('docs').select('data').eq('path',path).maybeSingle();if(error)throw err(error);if(data)cache[path]=data.data;else delete cache[path];return snap(path);},
-  set:async d=>{await authed;const {error}=await sb.from('docs').upsert({path,coll:collOf(path),data:d,updated_at:new Date().toISOString()},{onConflict:'path'});if(error)throw err(error);cache[path]=clone(d);after(path);},
-  update:async d=>{await authed;const {error}=await sb.rpc('doc_update',{p_path:path,p_patch:d});if(error)throw err(error);await refetch(path);},
+  set:async d=>{await authed;const {error}=await sb.from('docs').upsert({path,coll:collOf(path),data:limpa(d),updated_at:new Date().toISOString()},{onConflict:'path'});if(error)throw err(error);cache[path]=clone(d);after(path);},
+  update:async d=>{await authed;const {error}=await sb.rpc('doc_update',{p_path:path,p_patch:limpa(d)});if(error)throw err(error);await refetch(path);},
   delete:async()=>{await authed;const {error}=await sb.from('docs').delete().eq('path',path);if(error)throw err(error);delete cache[path];after(path);},
   onSnapshot:(n,onErr)=>{(listeners.doc[path]=listeners.doc[path]||[]).push(n);(async()=>{await authed;realtime();try{await docRef(path).get();n(snap(path));}catch(e){onErr&&onErr(e);}})();return()=>{};}};}
 function colRef(c){return {path:c,doc:id=>docRef(c+'/'+id),
@@ -67,7 +68,7 @@ const blobCache={};const realFetch=window.fetch.bind(window);
 window.fetch=async(u,o)=>{if(typeof u==='string'&&u.startsWith('/_blob/')){await authed;const id=u.slice(7);
   if(blobCache[id]==null){const {data,error}=await sb.from('blobs').select('content').eq('id',id).maybeSingle();if(error||!data)return new Response('',{status:404});blobCache[id]=data.content;}
   return new Response(blobCache[id],{status:200});}return realFetch(u,o);};
-const assets={upload:async b=>{await authed;const id=Date.now().toString(16)+Math.random().toString(16).slice(2,10);const bin=b.type&&!/json|text|xml/.test(b.type);const t=bin?await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);}):await b.text();const {error}=await sb.from('blobs').insert({id,content:t});if(error)throw err(error);blobCache[id]=t;return {id,url:'/_blob/'+id};}};
+const assets={upload:async b=>{await authed;const id=Date.now().toString(16)+Math.random().toString(16).slice(2,10);const bin=b.type&&!/json|text|xml/.test(b.type);const t=bin?await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);}):await b.text();const {error}=await sb.from('blobs').insert({id,content:limpa(t)});if(error)throw err(error);blobCache[id]=t;return {id,url:'/_blob/'+id};}};
 const user={id:async()=>{await authed;return session.user.id;},can:async()=>{await authed;return true;},
   profiles:async ids=>{await authed;const o={};(ids||[]).forEach(i=>{if(i===session.user.id)o[i]={name:session.user.email};});return o;}};
 const downloads={save:async r=>{const a=document.createElement('a');a.href=URL.createObjectURL(r.data);a.download=r.filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);return {status:'saved'};}};

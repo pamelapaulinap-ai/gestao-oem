@@ -2292,6 +2292,9 @@ function terRes(r){const h=terMatch(r);if(!h)return r;const t=h.t;return {...r,e
 
 function ctrMovePatch(c,de,para){const p={mes:para};const md=(c.monthly||{})[de];if(de&&para!==de&&md)p.monthly={[para]:md,[de]:null};return p;}
 const compSel=(attr,val,extra)=>`<select ${attr} aria-label="Mês de competência da NF" ${extra||''}>${mesesOpts([val]).map(x=>`<option value="${x}" ${x===val?'selected':''}>${mesLabel(x)}</option>`).join('')}</select>`;
+/* texto de PDF: tira caracteres nulos/de controle e emoji quebrado (que o banco recusa) */
+function limpaTxt(s){s=String(s||'');const bin=/\u0000/.test(s);s=s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD\uFEFF]/g,'');if(bin)s=s.replace(/[\u00D8-\u00DB][\s\S][\u00DC-\u00DF][\s\S]/g,'');
+  return s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,'').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,'');}
 /* ---------- LPU repetida ---------- */
 const dupKey=r=>{const x=terRes(r);const who=dig(x.cnpj)||x.tercId||norm(x.empresa);return r.etiqueta?[who,norm(r.etiqueta),Number(r.total||0).toFixed(2)].join('|'):'';};
 function lpuDup(r,k){if(r.dupOk)return null;const L=F.lidos;
@@ -2576,7 +2579,7 @@ Números em formato JSON (ponto decimal). Não invente dados que não estão no 
 async function lerPdfsLpu(files){F.falhas=[];if(!window.pdfjsLib){toast('Leitor de PDF indisponível nesta visualização');return;}
   let n=0,falhas=[];for(const f of files){n++;F.lendo=`Lendo ${n} de ${files.length}: ${f.name}…`;const st=$('#lpu-msg');if(st)st.textContent=F.lendo;
     try{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;const tok=[];
-      for(let p=1;p<=Math.min(pdf.numPages,300);p++){const tc=await (await pdf.getPage(p)).getTextContent();for(const it of tc.items){const s=(it.str||'').replace(/\s+/g,' ').trim();if(s)tok.push(s);}}
+      for(let p=1;p<=Math.min(pdf.numPages,300);p++){const tc=await (await pdf.getPage(p)).getTextContent();for(const it of tc.items){const s=limpaTxt(it.str||'').replace(/\s+/g,' ').trim();if(s)tok.push(s);}}
       const T=tok.join('\t');let rels=parseLpuText(T,f.name);
       if(!rels.length){let ano=(F.mes||mesAtual()).slice(0,4);try{const md=await pdf.getMetadata();const cd=/D:(\d{4})(\d{2})/.exec((md.info||{}).CreationDate||'');if(cd)ano=cd[1];}catch(e){}rels=parseLpuAntigo(T,f.name,ano);}
       if(!rels.length||rels.every(r=>!r.itens.length)){try{const ocr=await lpuOcr(pdf,f.name,p=>{F.lendo=`Lendo ${n} de ${files.length}: ${f.name} (PDF em imagem, reconhecendo texto da página ${p}… pode levar alguns segundos)`;const st=$('#lpu-msg');if(st)st.textContent=F.lendo;});if(ocr.length&&ocr[0].itens.length)rels=ocr;}catch(e){console.error(e);}}
