@@ -1156,7 +1156,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
     <!-- COMBUSTÍVEL -->
     <section id="v-comb" class="view" hidden>
       <div class="page">
-        <div><h2>Combustível</h2><p class="lede">Gasto com combustível e Veloe por mês, setor e veículo, a partir da planilha COMBUSTIVEL.xlsx.</p></div>
+        <div><h2>Combustível</h2><p class="lede">Retrato do ano (budget, CAPEX, OPEX e comentários) e detalhe por mês, setor e veículo, a partir da planilha da frota e da fatura do Veloe.</p></div>
         <div id="comb-body" class="fin" style="display:grid;gap:14px"></div>
       </div>
     </section>
@@ -2255,7 +2255,7 @@ const CONTAS=[{c:'0005',n:'Serviços de Instalação CLIENTE',g:'capex'},{c:'000
 const CONTA=Object.fromEntries(CONTAS.map(c=>[c.c,c]));
 const SETORES=[['TRANSMISSÃO','--s1'],['PREVENTIVA','--s4'],['MANUTENÇÃO','--s2'],['IMPLANTAÇÃO','--s6'],['RESERVA','--s3'],['GTD','--s5']];
 const SETOR_PREF={IMP:'IMPLANTAÇÃO',TRANSM:'TRANSMISSÃO',TRANS:'TRANSMISSÃO',PRE:'PREVENTIVA',PREV:'PREVENTIVA',MAN:'MANUTENÇÃO',RESERV:'RESERVA',RESERVA:'RESERVA',GTD:'GTD'};
-const F={falhas:[],mform:null,ic:'',ip:'ano',iq:'',it:'',isort:'vezes',idir:-1,iopen:null,lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
+const F={falhas:[],mform:null,ic:'',ip:'ano',iq:'',it:'',isort:'vezes',idir:-1,iopen:null,lsel:new Set(),lq:'',lt:'',lmes:'',tsel:'',tcon:'',tform:null,sub:'geral',ano:null,gsel:null,bedit:false,mes:mesAtual(),grp:'all',open:new Set(),cfg:{budget:{},contratos:{},combmeta:{},terceiros:{},hist:{}},lpu:{},comb:{},lidos:[],lendo:'',cmes:null,chide:new Set(),cform:null,xls:null,opened:new Set()};
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const brl0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.'));return isNaN(n)?0:n;};
@@ -2318,7 +2318,8 @@ function compConta(code,m){const o=new Map();const add=(k,v,tipo)=>{if(!v)return
   lpuMes(m).filter(r=>r.conta===code).forEach(r=>add(r.empresa||'(sem terceiro)',r.total||0,'lpu'));
   const TL=(F.cfg.terceiros||{}).lista||{};contratosMes(m).filter(c=>c.conta===code).forEach(c=>{const h=c.terc&&TL[c.terc]?{t:TL[c.terc]}:terMatch({empresa:c.nome});add(h&&h.t?h.t.nome:c.nome,ctrCalc(c,m).total,'ctr');});
   return [...o.values()].map(x=>({...x,t:x.lpu+x.ctr})).sort((a,b)=>b.t-a.t);}
-function execConta(code,m){const base=((F.cfg.budget.base||{})[code]||{})[m];const pdf=lpuConta(code,m);const usaBase=base!=null&&base!=='';
+function execConta(code,m){const hm=histMes(m);if(hm){const v=Number(hm[code])||0;return {lpu:v,pdf:0,base:null,ctr:0,total:v,hist:true};}
+  const base=((F.cfg.budget.base||{})[code]||{})[m];const pdf=lpuConta(code,m);const usaBase=base!=null&&base!=='';
   const lpu=usaBase?Number(base):pdf;const ctr=ctrConta(code,m);return {lpu,pdf,base:usaBase?Number(base):null,ctr,total:lpu+ctr};}
 function finTotais(m){const t={all:{b:0,e:0},capex:{b:0,e:0},opex:{b:0,e:0}};const bud=F.cfg.budget.contas||{};
   CONTAS.forEach(a=>{const e=execConta(a.c,m).total,b=Number((bud[a.c]||{})[m])||0;t.all.b+=b;t.all.e+=e;t[a.g].b+=b;t[a.g].e+=e;});
@@ -2342,7 +2343,7 @@ function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
 
 
 /* ---------- visão geral (todos os meses) ---------- */
-function finMesesDados(){const b=F.cfg.budget||{};const set=new Set();Object.values(F.lpu).forEach(r=>r&&r.mes&&set.add(r.mes));
+function finMesesDados(){const b=F.cfg.budget||{};const set=new Set(Object.keys((F.cfg.hist||{}).meses||{}).filter(m=>(F.cfg.hist.meses||{})[m]));Object.values(F.lpu).forEach(r=>r&&r.mes&&set.add(r.mes));
   Object.keys(b.geral||{}).forEach(m=>{const v=b.geral[m];if(v!=null&&v!=='')set.add(m);});
   ['contas','base'].forEach(k=>Object.values(b[k]||{}).forEach(o=>Object.entries(o||{}).forEach(([m,v])=>{if(v!=null&&v!==''&&Number(v)!==0)set.add(m);})));
   contratos().forEach(c=>{if(c.mes)set.add(c.mes);Object.keys(c.monthly||{}).forEach(m=>set.add(m));});
@@ -2358,7 +2359,7 @@ function finGeralDados(ano){const all=finMesesAno(ano);const ms=F.gsel&&F.gsel.s
   return {ms,rows,tot,acc:{all:mk('all'),capex:mk('capex'),opex:mk('opex')}};}
 function accCard(l,x,n,cls){const sub=!x.nb?'nenhum mês com budget lançado':x.nb===n?`todos os ${n} meses com budget`:(x.nb===1?'saldo comparado só no mês que tem budget lançado':`saldo comparado só nos ${x.nb} meses com budget lançado`);
   return `<div class="card fstat ${cls||''}"><div class="fl">${l}</div><div class="fv">${brl(x.e)}${x.b>0?` <small>/ budget ${brl(x.b)}</small>`:''}</div>${bbar(x.b,x.eb)}<div class="bbc">${sub}</div></div>`;}
-function finGeralChart(sel,G){const el=$(sel);if(!el)return;if(!G.ms.length){el.innerHTML='<p class="hint">Sem lançamentos neste período.</p>';return;}
+function finGeralChart(sel,G,onPick){const el=$(sel);if(!el)return;if(!G.ms.length){el.innerHTML='<p class="hint">Sem lançamentos neste período.</p>';return;}
   const W=920,H=290,pl=60,pr=96,pt=16,pb=32;const n=G.ms.length;
   const S=[{k:'tot',l:'Total',c:'--focus',v:t=>t.all.e,w:2.5},{k:'capex',l:'CAPEX',c:'--s4',v:t=>t.capex.e,w:2},{k:'opex',l:'OPEX',c:'--s1',v:t=>t.opex.e,w:2},{k:'bud',l:'Budget',c:'--fg-3',v:t=>t.all.b>0?t.all.b:null,w:2,dash:'6 4'}];
   const mx=Math.max(1,...G.tot.flatMap(t=>[t.all.e,t.all.b]));const raw=mx/5,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(f=>f*mag).find(v=>v>=raw);const top=Math.ceil(mx/st)*st;
@@ -2383,7 +2384,7 @@ function finGeralChart(sel,G){const el=$(sel);if(!el)return;if(!G.ms.length){el.
     r.onmousemove=e=>{cr.setAttribute('x1',x(i));cr.setAttribute('x2',x(i));cr.setAttribute('visibility','visible');tip.hidden=false;
       tip.innerHTML=`<b>${mesLabel(m)}</b><div>${dot('--focus')}Total ${brl(t.all.e)}</div><div>${dot('--s4')}CAPEX ${brl(t.capex.e)}</div><div>${dot('--s1')}OPEX ${brl(t.opex.e)}</div><div>${dot('--fg-3')}Budget ${t.all.b>0?brl(t.all.b):'—'}</div>${t.all.b>0?`<div style="color:${t.all.e>t.all.b?'var(--critical)':'var(--good)'}">${t.all.e>t.all.b?'Acima em '+brl(t.all.e-t.all.b):'Saldo '+brl(t.all.b-t.all.e)}</div>`:''}<div class="hint">Clique para abrir o mês</div>`;
       tip.style.left=Math.min(innerWidth-230,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';};
-    r.onmouseleave=()=>{tip.hidden=true;cr.setAttribute('visibility','hidden');};r.onclick=()=>{tip.hidden=true;F.mes=m;F.sub='conta';F.open.clear();curView==='fin'?renderFin():showView('fin');};});}
+    r.onmouseleave=()=>{tip.hidden=true;cr.setAttribute('visibility','hidden');};r.onclick=()=>{tip.hidden=true;if(onPick){onPick(m);return;}F.mes=m;F.sub='conta';F.open.clear();curView==='fin'?renderFin():showView('fin');};});}
 const geralLegend=`<div class="lg"><span><i style="background:var(--focus);height:3px;border-radius:0"></i>Total</span><span><i style="background:var(--s4);height:3px;border-radius:0"></i>CAPEX</span><span><i style="background:var(--s1);height:3px;border-radius:0"></i>OPEX</span><span><i style="background:transparent;border-top:2px dashed var(--fg-3);height:0;border-radius:0"></i>Budget</span><span style="color:var(--critical)">▲ acima do budget</span></div>`;
 function finGeralTabela(G){if(!G.ms.length)return '';const c=v=>v?brl0(v):'—';
   const cell=(x)=>`<td class="r mono"${x.b>0&&x.e>x.b?' style="color:var(--critical);font-weight:600" title="Acima do budget da conta ('+brl(x.b)+')"':x.b>0?' title="Budget da conta: '+brl(x.b)+'"':''}>${c(x.e)}</td>`;
@@ -2462,8 +2463,8 @@ function ovWire(){const b=$('#ov-ns');if(!b)return;const sel=$('#ov-nm'),ta=$('#
   b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('budget',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${finCaixa(ano)}`;
-  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);}
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${cmpHtml()}${finCaixa(ano)}${histCard(canWrite===false)}`;
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);cmpWire(renderFin);histWire();}
 function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
   const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
   const A=[H,...G.rows.map(r=>[r.a.c+' · '+r.a.n,r.a.g.toUpperCase(),...r.v.map(x=>x.e),sum(r.v.map(x=>x.e))]),[],
@@ -3069,76 +3070,257 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   XLSX.utils.book_append_sheet(wb,xlsSheet(K,[30,26,12,12,10,40,14,16,14,13,30,14,11,12],[6,7,8,9,11]),'Contrato fixo');
   const rels=lpuMes(m);if(rels.length){const {A,I}=lpuAoa(rels);XLSX.utils.book_append_sheet(wb,xlsSheet(A,[14,22,34,20,24,18,40,14,10,60,11,14,26],[11]),'Atividades LPU');XLSX.utils.book_append_sheet(wb,xlsSheet(I,[14,34,18,40,14,10,10,50,12,14,10,13,8,13],[11,13]),'Itens LPU');XLSX.utils.book_append_sheet(wb,itensSheet(rels),'Resumo dos itens LPU');XLSX.utils.book_append_sheet(wb,itensContaSheet(rels),'Itens por conta');}
   xlsSave(wb,`financeiro_om_${m}.xlsx`,{resumo:resumoMes(m)});}
+/* ---------- histórico de executado (planilha Mês/Ano · Conta contábil · Total) ---------- */
+const histMes=m=>((F.cfg.hist||{}).meses||{})[m];
+function histParse(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:true});const out={};const desconh=new Set();let n=0;
+  for(const sn of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});const hi=rows.findIndex(r=>r&&r.some(c=>/m[êe]s/i.test(String(c||'')))&&r.some(c=>/conta/i.test(String(c||''))));if(hi<0)continue;
+    const H=rows[hi].map(c=>norm(String(c||'')));const cM=H.findIndex(h=>/^mes/.test(h)),cC=H.findIndex(h=>/conta/.test(h)&&!/descr/.test(h));let cV=H.findIndex(h=>/total|valor|soma/.test(h));if(cV<0)cV=H.length-1;if(cM<0||cC<0)continue;
+    for(const r of rows.slice(hi+1)){if(!r)continue;const d=r[cM];let m=null;if(d instanceof Date){const x=new Date(d.getTime()+12*3600e3);m=x.getUTCFullYear()+'-'+String(x.getUTCMonth()+1).padStart(2,'0');}else{const s=String(d||'');let x=/(\d{1,2})\/(\d{4})/.exec(s);if(x)m=x[2]+'-'+x[1].padStart(2,'0');else{x=/^(\d{4})-(\d{2})/.exec(s);if(x)m=x[1]+'-'+x[2];}}
+      const cod=(/(\d{4})\s*$/.exec(String(r[cC]||''))||[])[1];const v=Number(r[cV]);if(!m||!cod||!isFinite(v))continue;if(!CONTA[cod]){desconh.add(cod);continue;}
+      const o=out[m]=out[m]||{};o[cod]=Math.round(((o[cod]||0)+v)*100)/100;n++;}}
+  if(!n)throw new Error('vazio');const anos={};Object.keys(out).sort().forEach(m=>{(anos[m.slice(0,4)]=anos[m.slice(0,4)]||[]).push(m);});
+  const temDado=m=>{if(histMes(m))return false;return CONTAS.some(a=>execConta(a.c,m).total>0);};
+  const sel=new Set(Object.keys(anos).filter(a=>!anos[a].some(temDado)));return {nome,meses:out,anos,sel,desconh:[...desconh],temDado};}
+function histCard(ro){const H=F.hist;const ex=(F.cfg.hist||{}).meses||{};const exAnos=[...new Set(Object.keys(ex).map(m=>m.slice(0,4)))].sort();
+  const tot=o=>Object.values(o||{}).reduce((s,v)=>s+(Number(v)||0),0);
+  return `<div class="card" id="hist-card"><h3>Histórico de executado</h3><p class="hint" style="margin:0 0 8px">Envie a planilha com Mês/Ano, Conta contábil e Total para trazer anos anteriores. Nos meses importados, o executado de cada conta passa a ser o da planilha.</p>
+   ${exAnos.length?`<p style="margin:0 0 8px">Já importado: ${exAnos.map(a=>`<b>${a}</b> (${Object.keys(ex).filter(m=>m.startsWith(a)).length} meses · ${brl0(Object.entries(ex).filter(([m])=>m.startsWith(a)).reduce((s,[,o])=>s+tot(o),0))})${ro?'':` <button class="btn small" data-hdel="${a}" style="color:var(--critical)">remover</button>`}`).join(' · ')}</p>`:''}
+   ${ro?'':`<div class="row"><label class="btn">Escolher planilha (.xlsx)<input type="file" id="hist-file" accept=".xlsx,.xls" hidden></label><span class="hint" id="hist-msg">${esc(F.histMsg||'')}</span></div>`}
+   ${H?`<div class="tm-blk" style="margin-top:10px"><div><b>${esc(H.nome)}</b> · marque os anos que vão para o painel:</div>
+     ${Object.entries(H.anos).sort().reverse().map(([a,ms])=>{const conf=ms.filter(H.temDado);const t=ms.reduce((s,m)=>s+tot(H.meses[m]),0);
+       return `<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" data-hy="${a}" ${H.sel.has(a)?'checked':''}><span><b>${a}</b> · ${ms.length} meses (${mesCurto(ms[0])} a ${mesCurto(ms[ms.length-1])}) · ${brl(t)}${conf.length?`<br><span class="hint" style="color:var(--warn)">${conf.length} mês(es) já têm lançamentos no painel: importar substitui o executado desses meses. Confira antes com "Baixar diferenças".</span>`:''}</span></label>`;}).join('')}
+     ${H.desconh.length?`<p class="hint" style="margin:0">Contas fora da lista do painel (ignoradas): ${H.desconh.join(', ')}.</p>`:''}
+     <div class="row"><button class="btn primary" id="hist-ok">Importar anos marcados</button><button class="btn" id="hist-dif">Baixar diferenças (Excel)</button><button class="btn" id="hist-no">Cancelar</button></div></div>`:''}</div>`;}
+function histDifExcel(){const H=F.hist;if(!H||!window.XLSX)return;const L=[['Mês','Conta','Descrição','Natureza','Planilha (R$)','Painel (R$)','Diferença (R$)','Situação']];
+  Object.keys(H.meses).sort().forEach(m=>{if(!H.temDado(m))return;const cs=new Set([...Object.keys(H.meses[m]),...CONTAS.filter(a=>execConta(a.c,m).total>0).map(a=>a.c)]);
+    CONTAS.filter(a=>cs.has(a.c)).forEach(a=>{const p=Number(H.meses[m][a.c])||0,d=Math.round(execConta(a.c,m).total*100)/100;const df=Math.round((p-d)*100)/100;L.push([mesCurto(m),a.c,a.n,a.g.toUpperCase(),p,d,df,Math.abs(df)<=1?'Confere':!d?'Não lançado no painel':!p?'Só no painel':'Valor diferente']);});});
+  if(L.length<2){toast('Nenhum mês da planilha tem lançamento no painel para comparar');return;}const wb=XLSX.utils.book_new();const ws=xlsSheet(L,[9,8,32,10,15,15,15,22],[4,5,6]);ws['!autofilter']={ref:`A1:H${L.length}`};XLSX.utils.book_append_sheet(wb,ws,'Diferenças');xlsSave(wb,'diferencas_planilha_x_painel.xlsx');}
+function histWire(){const fi=$('#hist-file');if(fi)fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(!window.XLSX){toast('Leitor de Excel indisponível nesta visualização');return;}
+    try{F.hist=histParse(new Uint8Array(await f.arrayBuffer()),f.name);F.histMsg='';}catch(e){console.error(e);F.hist=null;F.histMsg='Não reconheci a planilha: ela precisa das colunas Mês/Ano, Conta Contábil e Total.';}renderFin();setTimeout(()=>{const c=$('#hist-card');if(c)c.scrollIntoView({block:'center'});},0);};
+  document.querySelectorAll('[data-hy]').forEach(c=>c.onchange=()=>{c.checked?F.hist.sel.add(c.dataset.hy):F.hist.sel.delete(c.dataset.hy);});
+  const ok=$('#hist-ok');if(ok)ok.onclick=async()=>{if(noEdit())return;const H=F.hist;const ms={};Object.entries(H.meses).forEach(([m,o])=>{if(H.sel.has(m.slice(0,4)))ms[m]=o;});if(!Object.keys(ms).length){toast('Marque pelo menos um ano');return;}
+    ok.disabled=true;try{await finWrite('hist',{meses:ms,fonte:H.nome,em:new Date().toISOString()});toast(`Histórico importado: ${Object.keys(ms).length} meses`);F.hist=null;F.ano=[...H.sel].sort().pop();F.gsel=null;renderFin();}catch(e){handleWriteErr(e);ok.disabled=false;}};
+  const no=$('#hist-no');if(no)no.onclick=()=>{F.hist=null;renderFin();};const dif=$('#hist-dif');if(dif)dif.onclick=histDifExcel;
+  document.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{const a=b.dataset.hdel;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='confirmar remoção de '+a;setTimeout(()=>{b.dataset.ok='';b.textContent='remover';},4000);return;}if(noEdit())return;
+    const p={};Object.keys((F.cfg.hist||{}).meses||{}).filter(m=>m.startsWith(a)).forEach(m=>p[m]=null);try{await finWrite('hist',{meses:p});toast('Histórico de '+a+' removido');}catch(e){handleWriteErr(e);}});}
+/* ---------- comparativo entre anos ---------- */
+const CMP_MET=()=>[['all','Total executado'],['capex','CAPEX'],['opex','OPEX'],['bud','Budget total'],...CONTAS.map(a=>['c:'+a.c,a.c+' · '+a.n])];
+const CMP_COR=['--focus','--s4','--s1','--s2','--s6','--s5','--s3'];const CMP_DASH=['','6 4','2 4','10 4 2 4'];
+function cmpVal(ano,met,i){const m=ano+'-'+String(i+1).padStart(2,'0');if(!finMesesDados().includes(m))return null;if(met.startsWith('c:'))return execConta(met.slice(2),m).total;const t=finTotais(m);if(met==='bud')return t.all.b>0?t.all.b:null;return t[met].e;}
+function cmpSeries(){const anos=[...F.cmpA].sort();const mets=CMP_MET().filter(([k])=>F.cmpM.has(k));const S=[];
+  const multi=anos.length>1;anos.forEach((a,ai)=>mets.forEach(([k,l],mi)=>{let v=Array.from({length:12},(_,i)=>cmpVal(a,k,i));if(F.cmpAc){let acc=0;v=v.map(x=>x==null?null:(acc+=x));}S.push({ano:a,met:k,label:(mets.length>1?l+' · ':'')+a,cor:CMP_COR[(multi?ai:mi)%CMP_COR.length],dash:multi?CMP_DASH[mi%CMP_DASH.length]:'',v});}));return S;}
+function cmpHtml(){const anos=finAnos().filter(a=>finMesesDados().some(m=>m.startsWith(a)));if(anos.length<1)return '';
+  if(!F.cmpA){F.cmpA=new Set(anos.slice(0,2));F.cmpM=new Set(['all']);F.cmpKnown=anos.join();}
+  if(F.cmpKnown!==anos.join()){anos.filter(a=>!F.cmpKnown.split(',').includes(a)).slice(0,2).forEach(a=>F.cmpA.add(a));F.cmpKnown=anos.join();}F.cmpA=new Set([...F.cmpA].filter(a=>anos.includes(a)));if(!F.cmpA.size)F.cmpA.add(anos[0]);
+  const S=cmpSeries();const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const drop=(id,txt,opts,set)=>`<details class="mdrop" ${F['cmpOpen'+id]?'open':''} data-cmpd="${id}"><summary><span class="hint">${id==='A'?'Anos':'Comparar'}:</span> <b>${esc(txt)}</b> <span aria-hidden="true">▾</span></summary><div class="mdrop-p">${opts.map(([k,l])=>`<label><input type="checkbox" data-cmp${id}="${esc(k)}" ${set.has(k)?'checked':''}> ${esc(l)}</label>`).join('')}</div></details>`;
+  const metTxt=CMP_MET().filter(([k])=>F.cmpM.has(k)).map(x=>x[1].replace(/^\d{4} · /,'')).join(', ');
+  const rows=S.map(s=>{const prev=S.find(x=>x.met===s.met&&x.ano===String(+s.ano-1));const tot=F.cmpAc?[...s.v].reverse().find(x=>x!=null):s.v.reduce((a,x)=>a+(x||0),0);
+    let var_='—';if(prev){const idx=s.v.map((x,i)=>x!=null&&prev.v[i]!=null?i:-1).filter(i=>i>=0);if(idx.length){const a=F.cmpAc?s.v[idx[idx.length-1]]:idx.reduce((t,i)=>t+s.v[i],0),b=F.cmpAc?prev.v[idx[idx.length-1]]:idx.reduce((t,i)=>t+prev.v[i],0);if(b){const d=(a-b)/b*100;var_=`<span style="color:${d>0?'var(--critical)':'var(--good)'}">${d>0?'+':''}${d.toFixed(1)}%</span> <span class="hint">(${MES[idx[0]]}–${MES[idx[idx.length-1]]})</span>`;}}}
+    return `<tr><td><i style="display:inline-block;width:14px;height:0;border-top:3px ${s.dash?'dashed':'solid'} var(${s.cor});margin-right:6px;vertical-align:middle"></i>${esc(s.label)}</td>${s.v.map(x=>`<td class="r mono">${x==null?'—':brl0(x)}</td>`).join('')}<td class="r mono"><b>${tot==null?'—':brl0(tot)}</b></td><td class="r">${var_}</td></tr>`;}).join('');
+  return `<div class="card" id="cmp-card"><div class="row" style="align-items:center;gap:8px"><h3 class="grow" style="margin:0">Comparativo entre anos</h3>
+     ${drop('A',[...F.cmpA].sort().join(', '),anos.map(a=>[a,a]),F.cmpA)}${drop('M',metTxt||'—',CMP_MET(),F.cmpM)}
+     <div class="seg">${[[0,'Mensal'],[1,'Acumulado']].map(([k,l])=>`<button data-cmpac="${k}" aria-pressed="${!!F.cmpAc===!!k}">${l}</button>`).join('')}</div></div>
+    <div class="chart" id="cmp-chart" style="overflow-x:auto;margin-top:8px"></div>
+    <div class="tablewrap" style="margin-top:8px"><table class="mini" style="min-width:1100px"><thead><tr><th>Série</th>${MES.map(m=>`<th class="r">${m}</th>`).join('')}<th class="r">${F.cmpAc?'Acumulado':'Total'}</th><th class="r" title="Mesmos meses do ano anterior">vs. ano anterior</th></tr></thead><tbody>${rows||'<tr><td colspan="15" class="hint">Escolha pelo menos um ano e um item para comparar.</td></tr>'}</tbody></table></div>
+    <p class="hint" style="margin:6px 0 0">A variação compara só os meses que existem nos dois anos.</p></div>`;}
+function cmpWire(rer){const box=$('#cmp-card');if(!box)return;const S=cmpSeries();cmpChart('#cmp-chart',S);
+  box.querySelectorAll('[data-cmpd]').forEach(d=>d.ontoggle=()=>{F['cmpOpen'+d.dataset.cmpd]=d.open;});
+  box.querySelectorAll('[data-cmpA]').forEach(c=>c.onchange=()=>{c.checked?F.cmpA.add(c.dataset.cmpa||c.getAttribute('data-cmpA')):F.cmpA.delete(c.getAttribute('data-cmpA'));rer();});
+  box.querySelectorAll('[data-cmpM]').forEach(c=>c.onchange=()=>{const k=c.getAttribute('data-cmpM');c.checked?F.cmpM.add(k):F.cmpM.delete(k);rer();});
+  box.querySelectorAll('[data-cmpac]').forEach(b=>b.onclick=()=>{F.cmpAc=b.dataset.cmpac==='1';rer();});}
+function cmpChart(sel,S){const el=$(sel);if(!el)return;const vs=S.flatMap(s=>s.v).filter(x=>x!=null);if(!vs.length){el.innerHTML='<p class="hint">Sem dados para os itens escolhidos.</p>';return;}
+  const W=920,H=280,pl=64,pr=16,pt=14,pb=30;const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];const mx=Math.max(1,...vs);const raw=mx/5,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(f=>f*mag).find(v=>v>=raw);const top=Math.ceil(mx/st)*st;
+  const x=i=>pl+i*(W-pl-pr)/11,y=v=>pt+(H-pt-pb)*(1-v/top);const kf=v=>v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':Math.round(v/1000)+'k';let s='';
+  for(let g=0;g<=top+1e-6;g+=st)s+=`<line class="gr" x1="${pl}" x2="${W-pr}" y1="${y(g)}" y2="${y(g)}"/><text x="${pl-8}" y="${y(g)+4}" text-anchor="end">${kf(g)}</text>`;
+  MES.forEach((m,i)=>{s+=`<text x="${x(i)}" y="${H-10}" text-anchor="middle">${m}</text>`;});
+  S.forEach(se=>{let seg=[];const flush=()=>{if(seg.length>1)s+=`<polyline fill="none" stroke="var(${se.cor})" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" ${se.dash?`stroke-dasharray="${se.dash}"`:''} points="${seg.map(p=>p.join(',')).join(' ')}"/>`;seg=[];};
+    se.v.forEach((v,i)=>{if(v==null){flush();return;}seg.push([x(i).toFixed(1),y(v).toFixed(1)]);s+=`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5" fill="var(${se.cor})" stroke="var(--surface)" stroke-width="1.5"/>`;});flush();});
+  const hw=(W-pl-pr)/11;MES.forEach((m,i)=>{s+=`<rect class="hit" data-i="${i}" x="${(x(i)-hw/2).toFixed(1)}" y="${pt}" width="${hw.toFixed(1)}" height="${H-pt-pb}" fill="transparent"/>`;});
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Comparativo mensal entre anos">${s}<line class="ax" x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}"/></svg>`;
+  let tip=$('#fin-tip');if(!tip){tip=document.createElement('div');tip.id='fin-tip';tip.className='tip';tip.hidden=true;document.body.appendChild(tip);}
+  el.querySelectorAll('.hit').forEach(r=>{const i=+r.dataset.i;r.onmousemove=e=>{tip.hidden=false;tip.innerHTML=`<b>${MES[i]}</b>${S.map(se=>`<div><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(${se.cor});margin-right:6px"></i>${esc(se.label)}: ${se.v[i]==null?'—':brl(se.v[i])}</div>`).join('')}`;tip.style.left=Math.min(innerWidth-260,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';};r.onmouseleave=()=>tip.hidden=true;});}
 function dashFin(box){const md=finMesesDados();const m=md.includes(F.mes)||!md.length?F.mes:md[md.length-1];const t=finTotais(m);const rels=lpuMes(m);const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano,true)}
+  box.innerHTML=`<div class="row"><h2 style="margin:0;font-size:17px">Visão geral · todos os meses de ${ano}</h2><div class="grow"></div>${anoSel(ano)}</div>${mesesChips(ano)}${finGeralTop(G,ano,true)}${cmpHtml()}
    <div class="row" style="margin-top:6px"><h2 style="margin:0;font-size:17px">Mês de ${mesLabel(m)}</h2></div><div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
    <div class="grid2"><div class="card"><h3>Executado por conta contábil · ${mesLabel(m)}</h3><div id="df-1"></div></div><div class="card"><h3>Contrato fixo · ${mesLabel(m)}</h3><div id="df-2"></div><p class="hint">${rels.length} relatório(s) de LPU lido(s) no mês.</p></div></div>
    <div><button class="btn primary" id="df-open">Abrir Financeiro</button></div>`;
   fbars('#df-1',CONTAS.map(a=>[a.c+' · '+a.n,execConta(a.c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s1',brl0);
   fbars('#df-2',contratosMes(m).map(c=>[c.nome,ctrCalc(c,m).total]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]),'--s4',brl0);$('#df-open').onclick=()=>{F.sub='geral';showView('fin');};
-  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderDash);if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderDash();};}
+  finGeralChart('#fg-chart',G);cmpWire(renderDash);mesesChipsWire(box,renderDash);if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderDash();};}
 
 /* ================= COMBUSTÍVEL ================= */
-const combMeses=()=>Object.keys(F.comb).sort();
+const COMB_BUD_PADRAO=33000;
+const combMeses=()=>Object.keys(F.comb).filter(m=>/^\d{4}-\d{2}$/.test(m)).sort();
 const combItens=m=>Object.entries((F.comb[m]||{}).itens||{}).filter(([,v])=>v).map(([id,v])=>({...v,id,total:(Number(v.comb)||0)+(Number(v.veloe)||0)}));
-function combResumo(m){const it=combItens(m);const cats={};let km=0,comb=0,veloe=0,capex=0,opex=0;it.forEach(v=>{cats[v.setor]=(cats[v.setor]||0)+v.total;km+=Number(v.km)||0;comb+=Number(v.comb)||0;veloe+=Number(v.veloe)||0;if(v.tipo==='CAPEX')capex+=v.total;else if(v.tipo==='OPEX')opex+=v.total;});
-  return {it,cats,km,comb,veloe,total:comb+veloe,capex,opex,semVeloe:it.length>0&&veloe===0};}
-function combChart(sel,meses){const el=$(sel);if(!el)return;const W=920,H=280,pl=48,pr=10,pt=12,pb=30;const data=meses.map(m=>({m,r:combResumo(m)}));const cats=SETORES.filter(([k])=>!F.chide.has(k));
-  const mx=Math.max(1,...data.map(d=>cats.reduce((s,[k])=>s+(d.r.cats[k]||0),0)),...data.map(d=>Number((F.cfg.combmeta.meses||{})[d.m])||0));const st=10000;const top=Math.ceil(mx/st)*st;
+const combBudPadrao=()=>{const p=(F.cfg.combmeta||{}).padrao;return p!=null&&p!==''?Number(p)||0:COMB_BUD_PADRAO;};
+const COMB_BUD_HIST=[['2026-07',null],['0000-00',30000]];/* antes de jul/2026 o budget era 30 mil */
+const combBud=m=>{const v=((F.cfg.combmeta||{}).meses||{})[m];if(v!=null&&v!=='')return Number(v)||0;const h=COMB_BUD_HIST.find(([d])=>m>=d);return h&&h[1]!=null?h[1]:combBudPadrao();};
+function combPlacaInfo(){const o={};combMeses().forEach(m=>combItens(m).forEach(v=>{const p=o[v.placa]=o[v.placa]||{};if(v.tipo)p.tipo=v.tipo;if(v.setor)p.setor=v.setor;}));return o;}
+const combInclui=v=>v.incluir!==false;
+function combResumo(m,info){info=info||combPlacaInfo();const it=combItens(m);const inc=it.filter(combInclui);const fora=it.filter(v=>!combInclui(v));const cats={};let km=0,comb=0,veloe=0,capex=0,opex=0,est=false;
+  inc.forEach(v=>{cats[v.setor]=(cats[v.setor]||0)+v.total;km+=Number(v.km)||0;comb+=Number(v.comb)||0;veloe+=Number(v.veloe)||0;let t=v.tipo;if(!t&&v.setor!=='RESERVA'&&(info[v.placa]||{}).tipo){t=info[v.placa].tipo;est=true;}if(t==='CAPEX')capex+=v.total;else opex+=v.total;});
+  const total=comb+veloe;return {it,inc,fora,foraV:fora.reduce((s,v)=>s+v.total,0),cats,km,comb,veloe,total,capex,opex,est,semVeloe:inc.length>0&&veloe===0};}
+const combAnos=()=>{const a=[...new Set(combMeses().map(m=>m.slice(0,4)))].sort().reverse();return a;};
+function combAno(){const a=combAnos();if(!F.cano||!a.includes(F.cano))F.cano=a[0];return F.cano;}
+function combAnoDados(ano){const info=combPlacaInfo();const ms=combMeses().filter(m=>m.startsWith(ano));const tot=ms.map(m=>{const r=combResumo(m,info);return {r,all:{e:r.total,b:combBud(m)},capex:{e:r.capex,b:0},opex:{e:r.opex,b:0}};});return {ms,tot,info};}
+function combAnoHtml(ano,ro){const G=combAnoDados(ano);const all=combMeses();const info=G.info;if(!G.ms.length)return '';
+  const pct=(a,b)=>b>0?a/b*100:null;const f1=v=>v==null?'—':v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';const f2=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
+  const n=G.ms.length;const cm=G.ms[n-1];const T=G.tot[n-1];const cu=pct(T.all.e,T.all.b);const nota=(F.cfg.combmeta||{}).nota||{};
+  const linhas=G.ms.map((m,i)=>{const t=G.tot[i],r=t.r;const b=t.all.b,e=t.all.e;const res=b>0?b-e:null;const pm=all[all.indexOf(m)-1];const pe=pm&&pm===mesAnt(m)?combResumo(pm,info).total:null;const v=pe?(e-pe)/pe*100:null;const sg=x=>x>0?'+':x<0?'−':'';
+    return `<tr><td><b>${mesCurto(m)}</b>${r.semVeloe?' <span class="gt" style="color:var(--warn);border-color:var(--warn)" title="Fatura do Veloe ainda não lançada">sem Veloe</span>':''}</td><td class="r num">${b>0?brl(b):'—'}</td><td class="r num">${brl(r.capex)}${r.est?'<sup title="Classificação CAPEX/OPEX estimada pela placa">*</sup>':''}</td><td class="r num">${brl(r.opex)}</td><td class="r num"><b>${brl(e)}</b>${r.fora.length?`<div class="hint" style="font-size:11px" title="${esc(r.fora.map(v=>v.placa).join(', '))}">${r.fora.length} reserva fora: ${brl0(r.foraV)}</div>`:''}</td>
+      <td class="r num ${res==null?'':res<0?'neg':'pos'}">${res==null?'—':(res<0?'− ':'+ ')+brl(Math.abs(res))}</td><td class="r num ${res==null?'':res<0?'neg':'pos'}">${b>0?f1(e/b*100):'—'}</td>
+      <td class="r num ${v==null?'':v>0?'neg':'pos'}">${v==null?'—':`${sg(v)}${f2(Math.abs(v))} <span class="hint">(${sg(v)} ${brl(Math.abs(e-pe))})</span>`}</td></tr>`;}).join('');
+  const S=k=>G.tot.reduce((s,t)=>s+t[k].e,0);const totE=S('all'),orc=G.tot.reduce((s,t)=>s+t.all.b,0),cx=S('capex'),ox=S('opex');const uso=pct(totE,orc);
+  const notas=G.ms.map(m=>[m,nota[m]]).filter(x=>x[1]);const est=G.tot.some(t=>t.r.est);
+  return `<div class="row" style="align-items:flex-end"><h2 style="margin:0;font-size:17px" class="grow">Retrato do ano · ${ano}</h2>${combAnos().length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="cb-ano">${combAnos().map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:''}
+     ${ro?'':`<label class="fld" style="width:190px"><span>Budget mensal padrão (R$)</span><input type="text" inputmode="decimal" id="cb-bpad" value="${combBudPadrao()}"></label>`}</div>
+   <div class="ov-kpis"><div class="card ov"><span class="v">${brl(T.all.e)}</span><span class="l">Total gasto · ${mesLabel(cm)}</span></div>
+     <div class="card ov"><span class="v">${T.all.b>0?brl(T.all.b):'—'}</span><span class="l">Budget · ${mesLabel(cm)}</span></div>
+     <div class="card ov ${cu!=null&&cu>100?'bad':'ok'}"><span class="v">${f1(cu)}</span><span class="l">Utilizado do budget · ${mesLabel(cm)}</span></div>
+     <div class="card ov"><span class="v">${f1(pct(T.capex.e,T.all.e))} / ${f1(pct(T.opex.e,T.all.e))}</span><span class="l">CAPEX / OPEX · ${mesLabel(cm)}</span></div></div>
+   <p class="hint" style="margin:-4px 0 0">Os cartões mostram o último mês lançado (${mesLabel(cm)}). Gasto = combustível + Veloe (pedágio e estacionamento).</p>
+   <div class="card"><h3>Evolução mensal</h3><div class="tablewrap"><table class="ovt"><thead><tr><th>Mês</th><th class="r">Budget</th><th class="r">CAPEX</th><th class="r">OPEX</th><th class="r">Total utilizado</th><th class="r">Resultado</th><th class="r">% budget</th><th class="r">Variação vs. mês anterior</th></tr></thead><tbody>${linhas}</tbody></table></div>
+     ${est?'<p class="hint" style="margin:6px 0 0">* Meses antes da marcação CAPEX/OPEX na planilha: a divisão usa a classificação atual de cada placa. Carro reserva que entra no mês conta como OPEX (ou como estiver marcado).</p>':''}
+     ${notas.length?`<div class="ov-notas">${notas.map(([m,t])=>`<p><b>${mesCurto(m)}:</b> ${esc(t)}</p>`).join('')}</div>`:''}
+     ${ro?'':`<details class="ov-ed"><summary>Escrever comentário / justificativa do mês</summary><div class="row" style="margin-top:8px;align-items:flex-start"><select id="cb-nm">${G.ms.slice().reverse().map(m=>`<option value="${m}">${mesLabel(m)}</option>`).join('')}</select><textarea id="cb-nt" class="grow" rows="3" placeholder="Ex.: Aumento em setembro pela cobertura da rota Sorocaba e veículo reserva em uso…"></textarea><button class="btn primary small" id="cb-ns">Salvar</button></div></details>`}</div>
+   <div class="card ov-foot"><div><span class="l">Total do ano (${mesCurto(G.ms[0])} — ${mesCurto(cm)})</span><b>${brl(totE)}</b></div><div><span class="l">Budget (acum.)</span><b>${orc>0?brl(orc):'—'}</b></div><div><span class="l">Utilizado</span><b class="${uso!=null&&uso>100?'neg':'pos'}">${uso==null?'—':(uso-100>0?'+ ':'− ')+f2(Math.abs(uso-100))}</b><span class="hint" style="font-size:11px">${uso==null?'':f1(uso)+' do budget'}</span></div><div><span class="l">CAPEX / OPEX</span><b>${f1(pct(cx,totE))} / ${f1(pct(ox,totE))}</b></div></div>
+   <div class="card"><h3>Evolução mensal · total, CAPEX, OPEX e budget</h3>${geralLegend}<div class="chart" id="cb-gchart" style="overflow-x:auto"></div><p class="hint" style="margin:6px 0 0">Passe o mouse para ver os valores; clique num mês para abrir o detalhe.</p></div>`;}
+function combAnoWire(box,rer,ano){const G=combAnoDados(ano);finGeralChart('#cb-gchart',G,m=>{F.cmes=m;curView==='comb'?(renderComb(),setTimeout(()=>{const d=$('#cb-det');if(d)d.scrollIntoView({block:'start'});},0)):showView('comb');});
+  const a=box.querySelector('#cb-ano');if(a)a.onchange=()=>{F.cano=a.value;rer();};
+  const bp=box.querySelector('#cb-bpad');if(bp)bp.onchange=async()=>{if(noEdit())return;try{await finWrite('combmeta',{padrao:num(bp.value)});toast('Budget padrão salvo');}catch(e){handleWriteErr(e);}};
+  const b=box.querySelector('#cb-ns');if(b){const sel=box.querySelector('#cb-nm'),ta=box.querySelector('#cb-nt');const fill=()=>{ta.value=((F.cfg.combmeta||{}).nota||{})[sel.value]||'';};fill();sel.onchange=fill;
+    b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('combmeta',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}}
+function combChart(sel,meses){const el=$(sel);if(!el)return;const W=920,H=280,pl=48,pr=10,pt=12,pb=30;const info=combPlacaInfo();const data=meses.map(m=>({m,r:combResumo(m,info),b:combBud(m)}));const cats=SETORES.filter(([k])=>!F.chide.has(k));
+  const mx=Math.max(1,...data.map(d=>cats.reduce((s,[k])=>s+(d.r.cats[k]||0),0)),...data.map(d=>d.b));const st=10000;const top=Math.ceil(mx/st)*st;
   const bw=(W-pl-pr)/data.length;const y=v=>pt+(H-pt-pb)*(1-v/top);let s='';
   for(let g=0;g<=top;g+=st){s+=`<line class="gr" x1="${pl}" x2="${W-pr}" y1="${y(g)}" y2="${y(g)}"/><text x="${pl-6}" y="${y(g)+4}" text-anchor="end">${g/1000}k</text>`;}
   data.forEach((d,i)=>{let acc=0;const x=pl+i*bw+bw*.16,w=bw*.68;cats.forEach(([k,v])=>{const val=d.r.cats[k]||0;if(!val)return;const y1=y(acc+val),h=y(acc)-y1;s+=`<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h-1).toFixed(1)}" rx="2" fill="var(${v})"/>`;acc+=val;});
-    const mt=Number((F.cfg.combmeta.meses||{})[d.m])||0;if(mt)s+=`<line x1="${(x-3).toFixed(1)}" x2="${(x+w+3).toFixed(1)}" y1="${y(mt)}" y2="${y(mt)}" stroke="var(--fg)" stroke-width="2" stroke-dasharray="4 3"/>`;
+    if(d.b)s+=`<line x1="${(x-3).toFixed(1)}" x2="${(x+w+3).toFixed(1)}" y1="${y(d.b)}" y2="${y(d.b)}" stroke="var(--fg)" stroke-width="2" stroke-dasharray="4 3"/>`;
     if(data.length<=14||i%2===0)s+=`<text x="${(x+w/2).toFixed(1)}" y="${H-10}" text-anchor="middle" ${d.m===F.cmes?'font-weight="700" fill="var(--fg)"':''}>${mesCurto(d.m)}</text>`;
     s+=`<rect class="hit" data-m="${d.m}" x="${(pl+i*bw).toFixed(1)}" y="${pt}" width="${bw.toFixed(1)}" height="${H-pt-pb}" fill="transparent" style="cursor:pointer"/>`;});
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto mensal de combustível por setor">${s}<line class="ax" x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}"/></svg>`;
   let tip=$('#fin-tip');if(!tip){tip=document.createElement('div');tip.id='fin-tip';tip.className='tip';tip.hidden=true;document.body.appendChild(tip);}
   el.querySelectorAll('.hit').forEach(r=>{const d=data.find(x=>x.m===r.dataset.m);r.onmousemove=e=>{tip.hidden=false;tip.innerHTML=`<b>${mesLabel(d.m)}</b><div>Total ${brl(d.r.total)}</div>${SETORES.filter(([k])=>d.r.cats[k]).map(([k,v])=>`<div><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(${v});margin-right:6px"></i>${k}: ${brl(d.r.cats[k])}</div>`).join('')}`;tip.style.left=Math.min(innerWidth-230,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';};r.onmouseleave=()=>tip.hidden=true;r.onclick=()=>{F.cmes=d.m;tip.hidden=true;curView==='comb'?renderComb():showView('comb');};});}
-function combKpis(m){const ms=combMeses();const r=combResumo(m);const pm=ms[ms.indexOf(m)-1];const p=pm?combResumo(pm):null;const dv=(a,b)=>b?(a-b)/b*100:null;const meta=Number((F.cfg.combmeta.meses||{})[m])||0;
+function combKpis(m){const ms=combMeses();const r=combResumo(m);const pm=ms[ms.indexOf(m)-1];const p=pm?combResumo(pm):null;const dv=(a,b)=>b?(a-b)/b*100:null;const meta=combBud(m);
   const ult=ms.filter(x=>x<=m&&combResumo(x).total>0&&!combResumo(x).semVeloe).slice(-12);const med=ult.length?ult.reduce((s,x)=>s+combResumo(x).total,0)/ult.length:0;
   return `<div class="kpis2 fk">${[kpiCard('up','--s2','Gasto em '+mesCurto(m),brl0(r.total),r.semVeloe?'só combustível: Veloe ainda não lançado':pm?'vs. '+mesCurto(pm):'',r.semVeloe?null:dv(r.total,p&&p.total)),kpiCard('clock','--s1','Km rodados',fmtN(r.km),pm?'vs. '+mesCurto(pm):'',dv(r.km,p&&p.km)),
-    kpiCard('ok','--s3','Custo por km',r.km?brl(r.total/r.km):'—',p&&p.km?'mês anterior: '+brl(p.total/p.km):'',null),kpiCard('mail','--s4','Meta do mês',meta?brl0(meta):'—',meta?(r.total<=meta?`faltam ${brl0(meta-r.total)} (${Math.round(r.total/meta*100)}%)`:`ultrapassou em ${brl0(r.total-meta)}`):'meta não definida',null),
+    kpiCard('ok','--s3','Custo por km',r.km?brl(r.total/r.km):'—',p&&p.km?'mês anterior: '+brl(p.total/p.km):'',null),kpiCard('mail','--s4','Budget do mês',meta?brl0(meta):'—',meta?(r.total<=meta?`faltam ${brl0(meta-r.total)} (${Math.round(r.total/meta*100)}%)`:`ultrapassou em ${brl0(r.total-meta)}`):'budget não definido',null),
     kpiCard('rede','--s6','Média mensal',brl0(med),`últimos ${ult.length} meses fechados`,null)].join('')}</div>`;}
-const combLegend=()=>`<div class="lg">${SETORES.map(([k,v])=>`<button type="button" data-cat="${k}" style="all:unset;cursor:pointer;opacity:${F.chide.has(k)?.35:1}"><i style="background:var(${v})"></i>${k}</button>`).join('')}<span><i style="background:transparent;border-top:2px dashed var(--fg);height:0;border-radius:0"></i>meta</span></div>`;
+const combLegend=()=>`<div class="lg">${SETORES.map(([k,v])=>`<button type="button" data-cat="${k}" style="all:unset;cursor:pointer;opacity:${F.chide.has(k)?.35:1}"><i style="background:var(${v})"></i>${k}</button>`).join('')}<span><i style="background:transparent;border-top:2px dashed var(--fg);height:0;border-radius:0"></i>budget</span></div>`;
+function combVeloeHtml(m,r){const d=F.comb[m]||{};const it=r.it.filter(v=>v.vdet);if(!it.length)return '';const S=k=>it.reduce((s,v)=>s+(v.vdet[k]||0),0);
+  const fora=it.filter(v=>v.vdet.fdsV||v.vdet.noiteV).sort((a,b)=>(b.vdet.fdsV+b.vdet.noiteV)-(a.vdet.fdsV+a.vdet.noiteV));
+  return `<div class="card"><h3>Veloe · ${mesLabel(m)}</h3><p class="hint" style="margin:0 0 8px">${esc(d.veloeFonte||'Fatura do Veloe')}: ${S('n')} passagens.</p>
+    <div class="grid2"><div><h4 style="margin:0 0 6px">Pedágio × estacionamento</h4><div id="cb-vpe"></div><h4 style="margin:12px 0 6px">Concessionárias com mais gasto</h4><div id="cb-vcc"></div></div>
+     <div><h4 style="margin:0 0 6px">Uso fora do horário comercial</h4><p class="hint" style="margin:0 0 6px">Fim de semana, ou antes das 6h e depois das 20h. Pode ser plantão: vale conferir com a escala.</p>
+      ${fora.length?`<table class="mini"><thead><tr><th>Placa</th><th>Setor</th><th class="r">Fim de semana</th><th class="r">Noite</th></tr></thead><tbody>${fora.map(v=>`<tr><td class="mono">${esc(v.placa)}</td><td>${esc(v.setor)}</td><td class="r mono">${v.vdet.fds?v.vdet.fds+'× · '+brl(v.vdet.fdsV):'—'}</td><td class="r mono">${v.vdet.noite?v.vdet.noite+'× · '+brl(v.vdet.noiteV):'—'}</td></tr>`).join('')}</tbody></table>`:'<p class="hint">Nenhuma passagem fora do horário.</p>'}</div></div></div>`;}
+function combVeloeWire(m,r){const it=r.it.filter(v=>v.vdet);if(!it.length)return;const S=k=>it.reduce((s,v)=>s+(v.vdet[k]||0),0);fbars('#cb-vpe',[['Pedágio',S('ped')],['Estacionamento',S('est')]].filter(e=>e[1]>0),'--s2',brl0);
+  const cc=(F.comb[m]||{}).veloeConc||{};fbars('#cb-vcc',Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>[k.replace(/^CONCESSIONARIA (DO |DA |DE )?/,'').replace(/ S\.?A\.?$/,''),v]),'--s1',brl0);}
 function renderComb(){const box=$('#comb-body');if(!box)return;const ms=combMeses();const ro=canWrite===false?'disabled':'';
-  if(!ms.length){box.innerHTML=`<div class="card"><p class="hint" style="margin:0">Nenhum lançamento de combustível ainda. Use "Atualizar pela planilha" para ler a COMBUSTIVEL.xlsx.</p></div>${combImportHtml(ro)}`;combImportWire();return;}
-  if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];const m=F.cmes;const r=combResumo(m);const pm=ms[ms.indexOf(m)-1];const p=pm?combResumo(pm):null;const meta=(F.cfg.combmeta.meses||{})[m];
-  const it=r.it.slice().sort((a,b)=>SETORES.findIndex(s=>s[0]===a.setor)-SETORES.findIndex(s=>s[0]===b.setor)||a.placa.localeCompare(b.placa));const temTipo=it.some(v=>v.tipo);
-  box.innerHTML=`<div class="row"><label class="fld" style="min-width:150px"><span>Mês</span><select id="cb-mes">${ms.slice().reverse().map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>
-     <label class="fld" style="width:150px"><span>Meta do mês (R$)</span><input type="text" inputmode="decimal" id="cb-meta" value="${meta??''}" ${ro}></label><div class="grow"></div>
-     <button class="btn" id="cb-novo" style="align-self:end" ${ro}>+ Abrir novo mês</button><button class="btn" id="cb-xls" style="align-self:end">Baixar Excel</button></div>
+  if(!ms.length){box.innerHTML=`<div class="card"><p class="hint" style="margin:0">Nenhum lançamento de combustível ainda. Envie a planilha da frota, a fatura do Veloe ou a COMBUSTIVEL.xlsx.</p></div>${combImportHtml(ro)}`;combImportWire();return;}
+  if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];const m=F.cmes;const info=combPlacaInfo();const r=combResumo(m,info);const pm=ms[ms.indexOf(m)-1];const p=pm?combResumo(pm,info):null;const meta=((F.cfg.combmeta||{}).meses||{})[m];const ano=combAno();
+  const it=r.it.slice().sort((a,b)=>SETORES.findIndex(s=>s[0]===a.setor)-SETORES.findIndex(s=>s[0]===b.setor)||a.placa.localeCompare(b.placa));const temTipo=r.capex+r.opex>0;const temFrota=it.some(v=>v.kml||v.condutor);
+  box.innerHTML=`${combAnoHtml(ano,!!ro)}
+   <div class="row" id="cb-det" style="margin-top:6px;align-items:flex-end"><h2 style="margin:0;font-size:17px" class="grow">Detalhe do mês</h2><label class="fld" style="min-width:150px"><span>Mês</span><select id="cb-mes">${ms.slice().reverse().map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>
+     <label class="fld" style="width:170px"><span>Budget do mês (R$)</span><input type="text" inputmode="decimal" id="cb-meta" value="${meta??''}" placeholder="padrão ${fmtN(combBudPadrao())}" ${ro}></label>
+     <button class="btn" id="cb-novo" ${ro}>+ Abrir novo mês</button><button class="btn" id="cb-xls">Baixar Excel</button></div>
    ${combKpis(m)}
    <div class="card"><h3>Gasto mensal por setor</h3>${combLegend()}<div class="chart" id="cb-chart" style="overflow-x:auto"></div><p class="hint">Combustível + Veloe. Clique em um mês para abrir o detalhe; clique em um setor da legenda para esconder ou mostrar.</p></div>
-   <div class="grid2"><div class="card"><h3>Por setor · ${mesLabel(m)}</h3><table><thead><tr><th>Setor</th><th class="r">Veículos</th><th class="r">Km</th><th class="r">Gasto</th><th class="r">R$/km</th><th class="r">vs. ${pm?mesCurto(pm):'—'}</th></tr></thead><tbody>${SETORES.filter(([k])=>r.cats[k]||(p&&p.cats[k])).map(([k,v])=>{const l=it.filter(x=>x.setor===k);const km=l.reduce((s,x)=>s+(Number(x.km)||0),0);const g=r.cats[k]||0;const d=p&&p.cats[k]&&!r.semVeloe?(g-p.cats[k])/p.cats[k]*100:null;
+   <div class="grid2"><div class="card"><h3>Por setor · ${mesLabel(m)}</h3><table><thead><tr><th>Setor</th><th class="r">Veículos</th><th class="r">Km</th><th class="r">Gasto</th><th class="r">R$/km</th><th class="r">vs. ${pm?mesCurto(pm):'—'}</th></tr></thead><tbody>${SETORES.filter(([k])=>r.cats[k]||(p&&p.cats[k])).map(([k,v])=>{const l=r.inc.filter(x=>x.setor===k);const km=l.reduce((s,x)=>s+(Number(x.km)||0),0);const g=r.cats[k]||0;const d=p&&p.cats[k]&&!r.semVeloe?(g-p.cats[k])/p.cats[k]*100:null;
        return `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(${v});margin-right:8px"></i>${k}</td><td class="r mono">${l.length}</td><td class="r mono">${fmtN(km)}</td><td class="r mono">${brl(g)}</td><td class="r mono">${km?brl(g/km):'—'}</td><td class="r mono" style="color:${d==null?'inherit':d>0?'var(--critical)':'var(--good)'}">${d==null?'—':(d>0?'+':'')+d.toFixed(1)+'%'}</td></tr>`;}).join('')}
-       <tr><td><b>Total</b></td><td class="r mono"><b>${it.length}</b></td><td class="r mono"><b>${fmtN(r.km)}</b></td><td class="r mono"><b>${brl(r.total)}</b></td><td class="r mono"><b>${r.km?brl(r.total/r.km):'—'}</b></td><td></td></tr></tbody></table></div>
-     <div class="card"><h3>CAPEX × OPEX · ${mesLabel(m)}</h3>${temTipo?`<div id="cb-cx"></div><p class="hint">Veículos sem marcação (reserva) ficam fora desta divisão: ${brl(r.total-r.capex-r.opex)}.</p>`:'<p class="hint">A planilha passou a marcar CAPEX/OPEX por veículo a partir de agosto de 2026; este mês não tem a marcação.</p>'}
+       <tr><td><b>Total</b></td><td class="r mono"><b>${r.inc.length}</b></td><td class="r mono"><b>${fmtN(r.km)}</b></td><td class="r mono"><b>${brl(r.total)}</b></td><td class="r mono"><b>${r.km?brl(r.total/r.km):'—'}</b></td><td></td></tr></tbody></table></div>
+     <div class="card"><h3>CAPEX × OPEX · ${mesLabel(m)}</h3>${temTipo?`<div id="cb-cx"></div><p class="hint">${r.est?'Classificação estimada pela placa (o mês não tem a marcação). ':''}${r.fora.length?'Carro reserva fora do mês: '+brl(r.foraV)+'.':''}</p>`:'<p class="hint">Nenhum veículo classificado como CAPEX ou OPEX neste mês.</p>'}
        <h3 style="margin-top:14px">Combustível × Veloe</h3><div id="cb-cv"></div></div></div>
+   ${combVeloeHtml(m,r)}
    <div class="card"><div class="row"><h3 class="grow" style="margin:0">Veículos · ${mesLabel(m)}</h3>${r.semVeloe?'<span class="pill" style="color:var(--warn)">Veloe ainda não lançado</span>':''}<button class="btn small" id="cb-add" ${ro}>+ Veículo</button></div>
-     <div class="tablewrap" style="margin-top:10px"><table class="cbt"><thead><tr><th>Setor</th><th>Placa</th><th>Natureza</th><th class="r">Km rodados</th><th class="r">Combustível (R$)</th><th class="r">Veloe (R$)</th><th class="r">Total</th><th class="r">R$/km</th><th></th></tr></thead><tbody>${it.map(v=>`<tr data-id="${esc(v.id)}"><td><select data-f="setor" ${ro}>${SETORES.map(([k])=>`<option ${k===v.setor?'selected':''}>${k}</option>`).join('')}</select></td><td><input type="text" data-f="placa" value="${esc(v.placa)}" style="width:96px" class="mono" ${ro}></td>
-       <td><select data-f="tipo" ${ro}>${['','CAPEX','OPEX'].map(k=>`<option value="${k}" ${k===(v.tipo||'')?'selected':''}>${k||'—'}</option>`).join('')}</select></td>
-       ${['km','comb','veloe'].map(f=>`<td class="r"><input type="text" inputmode="decimal" data-f="${f}" value="${v[f]??''}" class="mono r" style="width:96px;text-align:right" ${ro}></td>`).join('')}
-       <td class="r mono"><b>${brl(v.total)}</b></td><td class="r mono">${v.km?brl(v.total/v.km):'—'}</td><td class="r">${ro?'':`<button class="btn small" data-rm aria-label="Remover veículo do mês">✕</button>`}</td></tr>`).join('')}</tbody></table></div></div>
+     <div class="tablewrap" style="margin-top:10px"><table class="cbt"><thead><tr><th>Setor</th><th>Placa</th>${temFrota?'<th>Condutor</th>':''}<th>Natureza</th><th class="r">Km rodados</th>${temFrota?'<th class="r">Km/litro</th>':''}<th class="r">Combustível (R$)</th><th class="r">Veloe (R$)</th><th class="r">Total</th><th class="r">R$/km</th><th title="Carro reserva: entra ou não no gasto do mês">Entra no mês</th><th></th></tr></thead><tbody>${it.map(v=>`<tr data-id="${esc(v.id)}" ${combInclui(v)?'':'style="opacity:.55"'}><td><select data-f="setor" ${ro}>${SETORES.map(([k])=>`<option ${k===v.setor?'selected':''}>${k}</option>`).join('')}</select></td><td><input type="text" data-f="placa" value="${esc(v.placa)}" style="width:96px" class="mono" ${ro}>${v.modelo?`<div class="hint" style="font-size:11px">${esc(v.modelo)}</div>`:''}</td>
+       ${temFrota?`<td>${esc(v.condutor||'')}${v.status&&v.status!=='ATIVO'?` <span class="gt">${esc(v.status.toLowerCase())}</span>`:''}${v.just?` <span class="gt com" title="${esc(v.just)}">justificativa</span>`:''}</td>`:''}
+       <td><select data-f="tipo" ${ro}>${['','CAPEX','OPEX'].map(k=>`<option value="${k}" ${k===(v.tipo||'')?'selected':''}>${k||(!v.tipo&&v.setor!=='RESERVA'&&(info[v.placa]||{}).tipo?'('+info[v.placa].tipo+')':'—')}</option>`).join('')}</select></td>
+       <td class="r"><input type="text" inputmode="decimal" data-f="km" value="${v.km??''}" class="mono r" style="width:90px;text-align:right" ${ro}></td>
+       ${temFrota?`<td class="r mono" ${v.kml&&v.kml<7?'style="color:var(--warn)" title="Consumo abaixo de 7 km/l"':''}>${v.kml?v.kml.toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}</td>`:''}
+       ${['comb','veloe'].map(f=>`<td class="r"><input type="text" inputmode="decimal" data-f="${f}" value="${v[f]??''}" class="mono r" style="width:96px;text-align:right" ${ro}></td>`).join('')}
+       <td class="r mono"><b>${brl(v.total)}</b></td><td class="r mono">${v.km?brl(v.total/v.km):'—'}</td><td style="text-align:center">${v.setor==='RESERVA'||!combInclui(v)?`<input type="checkbox" data-inc ${combInclui(v)?'checked':''} ${ro} title="Incluir este carro no gasto do mês">`:'<span class="hint">sim</span>'}</td><td class="r">${ro?'':`<button class="btn small" data-rm aria-label="Remover veículo do mês">✕</button>`}</td></tr>`).join('')}</tbody></table></div></div>
    ${combImportHtml(ro)}`;
+  combAnoWire(box,renderComb,ano);
   $('#cb-mes').onchange=e=>{F.cmes=e.target.value;renderComb();};
-  $('#cb-meta').onchange=async e=>{if(noEdit())return;const v=e.target.value.trim();try{await finWrite('combmeta',{meses:{[m]:v===''?null:num(v)}});toast('Meta salva');}catch(er){handleWriteErr(er);}};
+  $('#cb-meta').onchange=async e=>{if(noEdit())return;const v=e.target.value.trim();try{await finWrite('combmeta',{meses:{[m]:v===''?null:num(v)}});toast('Budget do mês salvo');}catch(er){handleWriteErr(er);}};
   box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{const k=b.dataset.cat;F.chide.has(k)?F.chide.delete(k):F.chide.add(k);renderComb();});
-  combChart('#cb-chart',ms.slice(-24));
-  if(temTipo)fbars('#cb-cx',[['CAPEX',r.capex],['OPEX',r.opex]],'--s6',brl0);fbars('#cb-cv',[['Combustível',r.comb],['Veloe',r.veloe]],'--s2',brl0);
+  combChart('#cb-chart',ms.slice(-24));combVeloeWire(m,r);
+  if(temTipo)fbars('#cb-cx',[['CAPEX',r.capex],['OPEX',r.opex]].filter(e=>e[1]>0),'--s6',brl0);fbars('#cb-cv',[['Combustível',r.comb],['Veloe',r.veloe]],'--s2',brl0);
   const upd=async patch=>{try{await db.doc('combustivel/'+m).update({itens:patch});}catch(e){handleWriteErr(e);}};
   box.querySelectorAll('.cbt tbody tr').forEach(tr=>{const id=tr.dataset.id;tr.querySelectorAll('[data-f]').forEach(i=>i.onchange=()=>{if(noEdit())return;const f=i.dataset.f;const val=['km','comb','veloe'].includes(f)?num(i.value):f==='placa'?i.value.trim().toUpperCase():i.value;upd({[id]:{[f]:val}});});
+    const ic=tr.querySelector('[data-inc]');if(ic)ic.onchange=()=>{if(noEdit())return;upd({[id]:{incluir:ic.checked}});toast(ic.checked?'Carro incluído no mês':'Carro fora do gasto do mês');};
     const rm=tr.querySelector('[data-rm]');if(rm)rm.onclick=()=>{if(noEdit())return;if(rm.dataset.ok!=='1'){rm.dataset.ok='1';rm.textContent='Confirmar';rm.style.color='var(--critical)';setTimeout(()=>{rm.dataset.ok='';rm.textContent='✕';rm.style.color='';},4000);return;}upd({[id]:null});};});
   $('#cb-add').onclick=()=>{if(noEdit())return;upd({['v'+Date.now().toString(36)]:{setor:'MANUTENÇÃO',placa:'',tipo:'',km:0,comb:0,veloe:0}});};
   $('#cb-novo').onclick=async()=>{if(noEdit())return;const last=ms[ms.length-1];let y=+last.slice(0,4),mo=+last.slice(5)+1;if(mo>12){mo=1;y++;}const nm=y+'-'+String(mo).padStart(2,'0');const itens={};combItens(last).forEach(v=>{itens[v.id]={setor:v.setor,placa:v.placa,tipo:v.tipo||'',km:0,comb:0,veloe:0};});
     try{await db.doc('combustivel/'+nm).set({mes:nm,itens});F.cmes=nm;toast(mesLabel(nm)+' aberto com os veículos de '+mesCurto(last));}catch(e){handleWriteErr(e);}};
   $('#cb-xls').onclick=combExcel;combImportWire();}
-function combExcel(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ms=combMeses();const wb=XLSX.utils.book_new();
-  const L=[['Mês','Setor','Placa','Natureza','Km rodados','Combustível (R$)','Veloe (R$)','Total (R$)','R$/km']];ms.forEach(m=>combItens(m).forEach(v=>L.push([mesCurto(m),v.setor,v.placa,v.tipo||'',Number(v.km)||0,Number(v.comb)||0,Number(v.veloe)||0,v.total,v.km?Math.round(v.total/v.km*100)/100:''])));
-  const ws=xlsSheet(L,[10,16,12,10,12,16,12,12,9],[5,6,7,8]);ws['!autofilter']={ref:`A1:I${L.length}`};XLSX.utils.book_append_sheet(wb,ws,'Lançamentos');
-  const R=[['Mês',...SETORES.map(s=>s[0]),'Total (R$)','Km rodados','R$/km','Meta (R$)']];ms.forEach(m=>{const r=combResumo(m);R.push([mesCurto(m),...SETORES.map(([k])=>Math.round((r.cats[k]||0)*100)/100),Math.round(r.total*100)/100,r.km,r.km?Math.round(r.total/r.km*100)/100:'',Number((F.cfg.combmeta.meses||{})[m])||'']);});
+function combExcel(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ms=combMeses();const wb=XLSX.utils.book_new();const info=combPlacaInfo();
+  const A=[['Mês','Budget (R$)','CAPEX (R$)','OPEX (R$)','Reserva fora do mês (R$)','Total utilizado (R$)','Resultado (R$)','% do budget','Comentário']];ms.forEach(m=>{const r=combResumo(m,info);const b=combBud(m);A.push([mesCurto(m),b,Math.round(r.capex*100)/100,Math.round(r.opex*100)/100,Math.round(r.foraV*100)/100,Math.round(r.total*100)/100,Math.round((b-r.total)*100)/100,b?Math.round(r.total/b*1000)/10:'',((F.cfg.combmeta||{}).nota||{})[m]||'']);});
+  XLSX.utils.book_append_sheet(wb,xlsSheet(A,[10,13,13,13,18,15,14,11,50],[1,2,3,4,5,6]),'Retrato mensal');
+  const L=[['Mês','Setor','Placa','Modelo','Condutor','Natureza','Km rodados','Km/litro','Combustível (R$)','Veloe (R$)','Pedágio (R$)','Estacionamento (R$)','Total (R$)','R$/km']];ms.forEach(m=>combItens(m).forEach(v=>{const d=v.vdet||{};L.push([mesCurto(m),v.setor,v.placa,v.modelo||'',v.condutor||'',v.tipo||'',Number(v.km)||0,v.kml?Math.round(v.kml*10)/10:'',Number(v.comb)||0,Number(v.veloe)||0,d.ped||'',d.est||'',v.total,v.km?Math.round(v.total/v.km*100)/100:'']);}));
+  const ws=xlsSheet(L,[10,16,12,16,18,10,12,10,16,12,12,16,12,9],[8,9,10,11,12,13]);ws['!autofilter']={ref:`A1:N${L.length}`};XLSX.utils.book_append_sheet(wb,ws,'Lançamentos');
+  const R=[['Mês',...SETORES.map(s=>s[0]),'Total (R$)','Km rodados','R$/km','Budget (R$)']];ms.forEach(m=>{const r=combResumo(m,info);R.push([mesCurto(m),...SETORES.map(([k])=>Math.round((r.cats[k]||0)*100)/100),Math.round(r.total*100)/100,r.km,r.km?Math.round(r.total/r.km*100)/100:'',combBud(m)]);});
   XLSX.utils.book_append_sheet(wb,xlsSheet(R,[10,14,13,14,14,12,12,13,12,9,12],[1,2,3,4,5,6,7,9,10]),'Resumo por setor');xlsSave(wb,`combustivel_om_${hoje()}.xlsx`);}
-const combImportHtml=ro=>`<div class="card"><h3>Atualizar pela planilha</h3><p class="hint" style="margin:0 0 10px">Envie a COMBUSTIVEL.xlsx (aba Planilha1: MÊS, VEÍCULO, DESCRIÇÃO, quilometragem, combustível e Veloe). Os meses que estiverem na planilha são substituídos pelos valores dela; os demais ficam como estão.</p>
-   <div class="row"><label class="btn" style="${ro?'opacity:.5;pointer-events:none':''}">Escolher planilha (.xlsx)<input type="file" id="cb-file" accept=".xlsx,.xls" hidden></label><span class="hint" id="cb-imp-msg">${F.xls?`${F.xls.nome}: ${Object.keys(F.xls.meses).length} meses, ${F.xls.n} lançamentos (${mesCurto(F.xls.de)} a ${mesCurto(F.xls.ate)}).`:''}</span>${F.xls?'<button class="btn primary" id="cb-imp-ok">Aplicar ao painel</button><button class="btn" id="cb-imp-no">Cancelar</button>':''}</div></div>`;
+/* ---- leitura das fontes: planilha da frota, fatura do Veloe e COMBUSTIVEL.xlsx ---- */
+const combImportHtml=ro=>{const I=F.cimp||[];return `<div class="card" id="cb-imp"><h3>Atualizar pelas fontes</h3><p class="hint" style="margin:0 0 10px">Envie um ou mais arquivos: a <b>planilha da frota</b> (FROTA_MM.AA.xlsx: km, km/litro, condutor e gasto de combustível por carro), a <b>fatura do Veloe</b> (PDF: pedágio e estacionamento por placa) ou a <b>COMBUSTIVEL.xlsx</b>. Setor e CAPEX/OPEX de cada placa são mantidos.</p>
+   <div class="row"><label class="btn" style="${ro?'opacity:.5;pointer-events:none':''}">Escolher arquivos (.xlsx ou .pdf)<input type="file" id="cb-file" accept=".xlsx,.xls,.pdf" multiple hidden></label><span class="hint" id="cb-imp-msg">${esc(F.cimpMsg||'')}</span></div>
+   ${I.length?`<div style="margin-top:10px;display:grid;gap:8px">${I.map((x,k)=>x.tipo==='frota'?`<div class="tm-blk"><div><b>${esc(x.nome)}</b> · planilha da frota · ${Object.keys(x.meses).length} meses com gasto</div><div class="hint">Marque os meses que vão substituir km, km/litro, condutor e combustível do painel:</div>
+       <div class="row" style="gap:6px 14px;flex-wrap:wrap">${Object.keys(x.meses).sort().reverse().map(m=>{const t=Object.values(x.meses[m]).reduce((s,v)=>s+v.comb,0);const pn=F.comb[m]?combResumo(m).comb:null;return `<label class="hint" style="display:flex;gap:5px;align-items:center"><input type="checkbox" data-fm="${k}|${m}" ${x.sel.has(m)?'checked':''}> <b>${mesCurto(m)}</b> ${brl0(t)}${pn==null?' <span class="gt">novo</span>':Math.abs(pn-t)>1?` <span class="gt" style="color:var(--warn);border-color:var(--warn)" title="Painel: ${brl(pn)}">difere</span>`:' <span class="gt ok">igual</span>'}</label>`;}).join('')}</div>
+       <div class="row" style="gap:6px"><button class="btn small" data-fall="${k}">Marcar todos</button><button class="btn small" data-fnone="${k}">Desmarcar</button></div></div>`
+     :x.tipo==='veloe'?`<div class="tm-blk"><div><b>${esc(x.nome)}</b> · fatura do Veloe · <b>${mesLabel(x.mes)}</b> · ${Object.keys(x.placas).length} placas · ${brl(x.total)} <span class="hint">(pedágio ${brl(x.ped)} · estacionamento ${brl(x.est)})</span></div>${x.ok?'':` <span class="gt" style="color:var(--critical);border-color:var(--critical)">soma das placas não bate com o total da fatura</span>`}${F.comb[x.mes]&&combResumo(x.mes).veloe>0?`<div class="hint">O painel já tem ${brl(combResumo(x.mes).veloe)} de Veloe em ${mesCurto(x.mes)}: será substituído.</div>`:''}</div>`
+     :`<div class="tm-blk"><div><b>${esc(x.nome)}</b> · COMBUSTIVEL.xlsx · ${Object.keys(x.meses).length} meses, ${x.n} lançamentos (${mesCurto(x.de)} a ${mesCurto(x.ate)}): substitui os meses da planilha.</div></div>`).join('')}
+     <div class="row"><button class="btn primary" id="cb-imp-ok">Aplicar ao painel</button><button class="btn" id="cb-imp-no">Cancelar</button></div></div>`:''}</div>`;};
+const lev1=(a,b)=>{if(a===b)return true;if(Math.abs(a.length-b.length)>1)return false;if(a.length===b.length){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i]&&++d>1)return false;return true;}const [s,l]=a.length<b.length?[a,b]:[b,a];for(let i=0;i<l.length;i++)if(l.slice(0,i)+l.slice(i+1)===s)return true;return false;};
+const plNorm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function combParseFrota(wb,nome){const meses={};for(const sn of wb.SheetNames){const mm=/^\s*(\d{2})\.(\d{2}|\d{4})\b/.exec(sn);if(!mm)continue;const mes=(mm[2].length===2?'20'+mm[2]:mm[2])+'-'+mm[1];
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});const o={};
+    rows.forEach((r,h)=>{if(!r||!/PREVIS/i.test(String(r[7]||''))||!r[1])return;const placa=plNorm(r[1]);if(!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa))return;const v={placa,modelo:String((rows[h+1]||[])[1]||'').trim(),km:0,kml:0,comb:0,condutor:'',status:'',plantao:0,just:[]};
+      for(let k=h+1;k<=h+8&&k<rows.length;k++){const x=rows[k]||[];if(k>h+1&&/PREVIS/i.test(String(x[7]||'')))break;const d=Number(x[3]);if(!v.km&&d>0&&isFinite(d))v.km=d;
+        if(/^TOTAL$/i.test(String(x[8]||'').trim()))v.comb=Math.round((Number(x[9])||0)*100)/100;const a=String(x[0]||'');if(/CONDUTOR/i.test(a))v.condutor=a.replace(/^.*?CONDUTOR\s*:?\s*/i,'').trim();
+        const st=String(x[1]||'').trim().toUpperCase();if(/^(ATIVO|RESERVA|INATIVO|MANUTEN)/.test(st))v.status=st;if(/PLANT/i.test(String(x[7]||'')))v.plantao=Number(x[9])||0;if(x[10]&&String(x[10]).trim()&&!/JUSTIFICATIVA/i.test(String(x[10])))v.just.push(String(x[10]).trim());}
+      for(const k of [h+3,h+4,h+2]){const e=Number((rows[k]||[])[4]);if(e>2&&e<40){v.kml=Math.round(e*100)/100;break;}}
+      v.just=v.just.join(' · ');o[placa]=v;});
+    if(Object.values(o).reduce((t,v)=>t+v.comb,0)>0)meses[mes]=o;}
+  const ks=Object.keys(meses).sort();if(!ks.length)throw new Error('frota');const sel=new Set(ks.filter(m=>{if(!F.comb[m])return m>(combMeses().slice(-1)[0]||'');const t=Object.values(meses[m]).reduce((s,v)=>s+v.comb,0);return Math.abs(combResumo(m).comb-t)>1;}));if(!sel.size)sel.add(ks[ks.length-1]);
+  return {tipo:'frota',nome,meses,sel};}
+async function pdfLinhas(buf){const pdf=await pdfjsLib.getDocument({data:buf}).promise;const out=[];for(let p=1;p<=pdf.numPages;p++){const tc=await (await pdf.getPage(p)).getTextContent();const rows=[];
+    tc.items.forEach(it=>{const s=it.str||'';if(!s.trim())return;const y=it.transform[5],x=it.transform[4];let r=rows.find(r=>Math.abs(r.y-y)<2.5);if(!r){r={y,it:[]};rows.push(r);}r.it.push({x,s});});
+    rows.sort((a,b)=>b.y-a.y).forEach(r=>out.push(limpaTxt(r.it.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).replace(/\s+/g,' ').trim()));}return out;}
+function combParseVeloe(L,nome){const v=s=>Math.abs(Number(String(s).replace(/\./g,'').replace(',','.'))||0);let mes='',cur=null,cat='ped',totalF=null;const placas={},conc={};
+  for(const l of L){let m=/(\d{2})\/(\d{2})\/(\d{2,4})\s+a\s+\d{2}\/\d{2}\/\d{2,4}/.exec(l);if(m&&!mes){mes=(m[3].length===2?'20'+m[3]:m[3])+'-'+m[2];continue;}
+    m=/TOTAL DOS VALORES SOMADOS\s+(-?[\d.]+,\d{2})/.exec(l);if(m){totalF=v(m[1]);continue;}
+    m=/^([A-Z]{3}\d[A-Z0-9]\d{2})\b.*\bTOTAL\s+(-?[\d.]+,\d{2})$/.exec(l);if(m){cur=placas[m[1]]={tot:v(m[2]),ped:0,est:0,n:0,fds:0,fdsV:0,noite:0,noiteV:0};cat='ped';continue;}
+    if(/^Ped[áa]gio\b/i.test(l)){cat='ped';continue;}if(/^Estacionamento\b/i.test(l)){cat='est';continue;}
+    m=/^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})\s+(.+?)\s+(-?[\d.]+,\d{2})$/.exec(l);if(m&&cur){const val=v(m[7]);cur[cat]+=val;cur.n++;const est=m[6].split(/\s+\d+ eixos|\s+\d{2}\/\d{2}\/\d{2}/)[0].trim();if(cat==='ped')conc[est]=(conc[est]||0)+val;
+      const dt=new Date(2000+ +m[3],+m[2]-1,+m[1]);const dw=dt.getDay(),hh=+m[4];if(dw===0||dw===6){cur.fds++;cur.fdsV+=val;}else if(hh<6||hh>=20){cur.noite++;cur.noiteV+=val;}}}
+  if(!mes||!Object.keys(placas).length)throw new Error('veloe');const r2=x=>Math.round(x*100)/100;Object.values(placas).forEach(p=>['ped','est','fdsV','noiteV'].forEach(k=>p[k]=r2(p[k])));Object.keys(conc).forEach(k=>conc[k]=r2(conc[k]));
+  const total=r2(Object.values(placas).reduce((s,p)=>s+p.tot,0));const ok=Object.values(placas).every(p=>Math.abs(p.ped+p.est-p.tot)<0.02)&&(totalF==null||Math.abs(totalF-total)<0.02);
+  return {tipo:'veloe',nome,mes,placas,conc,total,ped:r2(Object.values(placas).reduce((s,p)=>s+p.ped,0)),est:r2(Object.values(placas).reduce((s,p)=>s+p.est,0)),ok};}
+function combAcha(itens,placa){const e=Object.entries(itens||{}).filter(([,v])=>v);let h=e.find(([,v])=>plNorm(v.placa)===placa);if(!h)h=e.find(([,v])=>v.placa&&lev1(plNorm(v.placa),placa));return h?h[0]:null;}
+function combAchaPlaca(placa,info){if(info[placa])return placa;return Object.keys(info).find(p=>lev1(p,placa))||placa;}
+async function combAplicar(){const info=combPlacaInfo();const st=(pl,status)=>{const i=info[pl]||{};return {setor:i.setor||(status==='RESERVA'?'RESERVA':'MANUTENÇÃO'),tipo:i.tipo||''};};const now=new Date().toISOString();
+  for(const x of F.cimp){
+    if(x.tipo==='comb'){for(const [m,itens] of Object.entries(x.meses))await db.doc('combustivel/'+m).set({mes:m,itens,atualizadoEm:now});F.cmes=x.ate;}
+    else if(x.tipo==='frota'){for(const m of [...x.sel].sort()){const cur=(F.comb[m]||{}).itens||{};const patch={};
+        Object.values(x.meses[m]).forEach(f=>{const id=combAcha(cur,f.placa);const d={km:f.km,comb:f.comb,kml:f.kml||null,condutor:f.condutor||null,status:f.status||null,modelo:f.modelo||null,plantao:f.plantao||null,just:f.just||null};
+          if(id)patch[id]=d;else{const pl=combAchaPlaca(f.placa,info);patch[pl]={...st(pl,f.status),placa:pl,veloe:0,...d};}});
+        if(F.comb[m])await db.doc('combustivel/'+m).update({itens:patch,frotaEm:now});else await db.doc('combustivel/'+m).set({mes:m,itens:patch,frotaEm:now});F.cmes=m;}}
+    else if(x.tipo==='veloe'){const m=x.mes;const cur=(F.comb[m]||{}).itens||{};const patch={};const usados=new Set();
+      Object.entries(x.placas).forEach(([pl,p])=>{const id=combAcha(cur,pl);const d={veloe:p.tot,vdet:{ped:p.ped,est:p.est,n:p.n,fds:p.fds,fdsV:p.fdsV,noite:p.noite,noiteV:p.noiteV}};if(id){patch[id]=d;usados.add(id);}else{const pl2=combAchaPlaca(pl,info);patch[pl2]={...st(pl2,''),placa:pl2,km:0,comb:0,...d};}});
+      Object.entries(cur).forEach(([id,v])=>{if(v&&!usados.has(id)&&!patch[id]&&(Number(v.veloe)||v.vdet))patch[id]={veloe:0,vdet:null};});
+      const meta={veloeConc:x.conc,veloeFonte:x.nome,veloeEm:now};if(F.comb[m])await db.doc('combustivel/'+m).update({itens:patch,...meta});else await db.doc('combustivel/'+m).set({mes:m,itens:patch,...meta});F.cmes=m;}}}
+function combImportWire(){const fi=$('#cb-file');if(fi)fi.onchange=async()=>{const fs=[...fi.files];if(!fs.length)return;F.cimp=[];F.cimpMsg='Lendo…';const msg=$('#cb-imp-msg');if(msg)msg.textContent='Lendo…';const err=[];
+    for(const f of fs){try{const buf=new Uint8Array(await f.arrayBuffer());
+        if(/\.pdf$/i.test(f.name)){if(!window.pdfjsLib)throw new Error('pdf');F.cimp.push(combParseVeloe(await pdfLinhas(buf),f.name));}
+        else{if(!window.XLSX)throw new Error('xlsx');const wb=XLSX.read(buf,{type:'array',cellDates:true});let r=null;try{r=combParseFrota(wb,f.name);}catch(e){}
+          if(!r){r=combParseXlsx(buf,f.name);r.tipo='comb';}F.cimp.push(r);}}catch(e){console.error(e);err.push(f.name);}}
+    F.cimpMsg=err.length?'Não reconheci: '+err.join(', ')+'.':'';renderComb();setTimeout(()=>{const c=$('#cb-imp');if(c)c.scrollIntoView({block:'center'});},0);};
+  document.querySelectorAll('[data-fm]').forEach(c=>c.onchange=()=>{const [k,m]=c.dataset.fm.split('|');const s=F.cimp[+k].sel;c.checked?s.add(m):s.delete(m);});
+  document.querySelectorAll('[data-fall]').forEach(b=>b.onclick=()=>{const x=F.cimp[+b.dataset.fall];x.sel=new Set(Object.keys(x.meses));renderComb();});
+  document.querySelectorAll('[data-fnone]').forEach(b=>b.onclick=()=>{F.cimp[+b.dataset.fnone].sel=new Set();renderComb();});
+  const ok=$('#cb-imp-ok');if(ok){ok.onclick=async()=>{if(noEdit())return;ok.disabled=true;ok.textContent='Aplicando…';try{await combAplicar();const n=F.cimp.length;F.cimp=[];F.cimpMsg='';toast(n>1?n+' arquivos aplicados ao painel':'Arquivo aplicado ao painel');renderComb();}catch(e){handleWriteErr(e);ok.disabled=false;ok.textContent='Aplicar ao painel';}};
+    $('#cb-imp-no').onclick=()=>{F.cimp=[];F.cimpMsg='';renderComb();};}}
 function combParseXlsx(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames.find(n=>/planilha1/i.test(n))||wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
   const hi=rows.findIndex(r=>r&&r.some(c=>/ve[íi]culo/i.test(String(c||''))));if(hi<0)throw new Error('cabeçalho');const H=rows[hi].map(c=>norm(String(c||'')));const col=(re,d)=>{const i=H.findIndex(h=>re.test(h));return i<0?d:i;};
   const cM=col(/^mes/,0),cV=col(/veiculo/,1),cD=col(/descricao/,2),cK=col(/quilometragem|km/,3),cC=col(/combustivel/,5),cW=col(/veloe/,7);const EN={jan:1,feb:2,fev:2,mar:3,apr:4,abr:4,may:5,mai:5,jun:6,jul:7,aug:8,ago:8,sep:9,set:9,oct:10,out:10,nov:11,dec:12,dez:12};
@@ -3146,14 +3328,10 @@ function combParseXlsx(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:
   const meses={};let n=0;for(const r of rows.slice(hi+1)){if(!r)continue;const m=mesDe(r[cM]);const v=/^\s*([A-Za-zÇç]+)\s*-\s*([A-Za-z0-9]+)\s*$/.exec(String(r[cV]||''));if(!m||!v)continue;const setor=SETOR_PREF[v[1].toUpperCase()];if(!setor)continue;const placa=v[2].toUpperCase();
     const o=meses[m]=meses[m]||{};let id=placa,k=2;while(o[id])id=placa+'_'+k++;const tp=String(r[cD]||'').trim().toUpperCase();o[id]={setor,placa,tipo:tp==='CAPEX'||tp==='OPEX'?tp:'',km:Number(r[cK])||0,comb:Math.round((Number(r[cC])||0)*100)/100,veloe:Math.round((Number(r[cW])||0)*100)/100};n++;}
   const ks=Object.keys(meses).sort();if(!ks.length)throw new Error('vazio');return {nome,meses,n,de:ks[0],ate:ks[ks.length-1]};}
-function combImportWire(){const fi=$('#cb-file');if(fi)fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(!window.XLSX){toast('Leitor de Excel indisponível nesta visualização');return;}
-    try{F.xls=combParseXlsx(new Uint8Array(await f.arrayBuffer()),f.name);renderComb();}catch(e){console.error(e);$('#cb-imp-msg').textContent='Não reconheci a planilha: confira se a aba tem as colunas MÊS e VEÍCULO.';}};
-  const ok=$('#cb-imp-ok');if(ok){ok.onclick=async()=>{if(noEdit())return;ok.disabled=true;try{for(const [m,itens] of Object.entries(F.xls.meses))await db.doc('combustivel/'+m).set({mes:m,itens,atualizadoEm:new Date().toISOString()});toast('Combustível atualizado pela planilha');F.cmes=F.xls.ate;F.xls=null;renderComb();}catch(e){handleWriteErr(e);ok.disabled=false;}};
-    $('#cb-imp-no').onclick=()=>{F.xls=null;renderComb();};}}
-function dashComb(box){const ms=combMeses();if(!ms.length){box.innerHTML='<div class="card"><p class="hint" style="margin:0">Sem dados de combustível.</p></div>';return;}if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];
-  box.innerHTML=`${combKpis(F.cmes)}<div class="card"><h3>Gasto mensal de combustível por setor</h3>${combLegend()}<div class="chart" id="dc-chart" style="overflow-x:auto"></div></div><div><button class="btn primary" id="dc-open">Abrir Combustível</button></div>`;
-  box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{const k=b.dataset.cat;F.chide.has(k)?F.chide.delete(k):F.chide.add(k);renderDash();});combChart('#dc-chart',ms.slice(-24));$('#dc-open').onclick=()=>showView('comb');}
-function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{},terceiros:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
+function dashComb(box){const ms=combMeses();if(!ms.length){box.innerHTML='<div class="card"><p class="hint" style="margin:0">Sem dados de combustível.</p></div>';return;}if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];const ano=combAno();
+  box.innerHTML=`${combAnoHtml(ano,true)}<div class="card"><h3>Gasto mensal de combustível por setor</h3>${combLegend()}<div class="chart" id="dc-chart" style="overflow-x:auto"></div></div><div><button class="btn primary" id="dc-open">Abrir Combustível</button></div>`;
+  combAnoWire(box,renderDash,ano);box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{const k=b.dataset.cat;F.chide.has(k)?F.chide.delete(k):F.chide.add(k);renderDash();});combChart('#dc-chart',ms.slice(-24));$('#dc-open').onclick=()=>showView('comb');}
+function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{},terceiros:{},hist:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
   db.collection('lpu').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.lpu=o;finRefresh();},()=>{});
   db.collection('combustivel').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.comb=o;finRefresh();},()=>{});}
 
