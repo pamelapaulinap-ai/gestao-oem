@@ -737,6 +737,31 @@ textarea{resize:vertical;width:100%}
 .cmp-p{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;min-width:0}.cmp-t{font-weight:700;font-size:14px}
 .cmp-sum{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px}.cmp-chip{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}.cmp-chip i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .cmp-var{font-weight:700;font-size:13px}
+.fstat .fl{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--fg-2)}
+.fstat .fv{font:700 28px/1.1 var(--f-display);font-variant-numeric:tabular-nums;margin-top:8px;letter-spacing:-.01em}
+.fstat .fsub{font-size:12.5px;color:var(--fg-3);margin-top:2px}
+.bb{position:relative;display:block;height:6px;border-radius:99px;overflow:hidden;background:var(--surface-2);margin-top:12px}
+.bb i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.bb .u{background:var(--focus)}.bb .w{background:var(--warn)}.bb .o{background:var(--critical)}.bb .n{background:transparent}
+.bbc{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--fg-3);margin-top:6px}
+.bbc b{font-weight:600;color:var(--fg-2);font-variant-numeric:tabular-nums}.bbc.bad,.bbc.bad b{color:var(--critical)}
+.acc-list{overflow:hidden}
+.acc-hd,.acch{display:grid;grid-template-columns:18px minmax(0,1fr) 130px 110px 170px 120px;gap:14px;align-items:center}
+.acc-hd{padding:10px 16px;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-3);border-bottom:1px solid var(--line);background:var(--surface-2)}
+.acc-hd .r{text-align:right}
+.acc{border-bottom:1px solid var(--line)}.acc:last-child{border-bottom:0}
+.acch{all:unset;box-sizing:border-box;display:grid;grid-template-columns:18px minmax(0,1fr) 130px 110px 170px 120px;gap:14px;align-items:center;width:100%;padding:12px 16px;cursor:pointer}
+.acch:hover{background:var(--surface-2)}.acch:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.acc.open>.acch{background:var(--surface-2)}
+.acch .car{color:var(--fg-3);transition:transform .15s}.acc.open .car{transform:rotate(90deg)}
+.acc-n{display:grid;gap:2px;min-width:0}.acc-t{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.acc-s{font-size:12px;color:var(--fg-3)}
+.acc-e{font-weight:700;font-variant-numeric:tabular-nums;font-size:14.5px}.acc-b,.acc-sal{font-variant-numeric:tabular-nums;font-size:13px;color:var(--fg-2)}
+.acc-sal.bad,.acc-pct.bad{color:var(--critical);font-weight:600}
+.acc-p{display:flex;align-items:center;gap:10px}.acc-p .bb{flex:1;margin:0}.acc-pct{font-size:12.5px;font-variant-numeric:tabular-nums;min-width:36px;text-align:right;color:var(--fg-2)}
+.acch .r{text-align:right}
+.acc .accd{margin:0;padding:14px 16px 16px 48px;border-top:1px solid var(--line)}
+@media (max-width:820px){.acc-t{white-space:normal;flex-wrap:wrap}.acc-sal::before{content:"Saldo: ";color:var(--fg-3)}.acc-e{align-self:start}.acc-hd{display:none}.acch{grid-template-columns:18px minmax(0,1fr) auto;row-gap:6px}.acc-b{display:none}.acc-p{grid-column:2/4}.acc-sal{grid-column:2/4;text-align:left}.acc .accd{padding-left:16px}}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
 .card.ov{display:grid;gap:4px;padding:14px 16px}.card.ov .v{font:700 24px/1.15 var(--f-display);font-variant-numeric:tabular-nums}.card.ov .l{font-size:13px;color:var(--fg-3)}
 .card.ov.bad{border-color:var(--critical);background:color-mix(in srgb,var(--critical) 7%,var(--surface))}.card.ov.bad .v{color:var(--critical)}.card.ov.ok .v{color:var(--good)}
@@ -967,19 +992,11 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
 
 /* financeiro e combustível */
 .fstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
-.fstat{padding:14px 16px}.fstat.capex{border-top:3px solid var(--s4)}.fstat.opex{border-top:3px solid var(--s1)}
-.fstat .fl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
-.fstat .fv{font:700 26px/1.15 var(--f-display);font-variant-numeric:tabular-nums;margin-top:4px}.fstat .fv small{font:500 13px var(--f-mono);color:var(--fg-3)}
-.bb{position:relative;display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--surface-2);margin-top:8px}
-.bb i{display:block;height:100%}.bb .u{background:var(--s1)}.bb .s{background:color-mix(in srgb,var(--good) 45%,var(--surface))}.bb .o{background:var(--critical)}.bb .n{background:var(--surface-2)}
-.bb u{position:absolute;top:0;bottom:0;width:2px;background:var(--surface)}
-.bbc{font:12px var(--f-mono);margin-top:5px;color:var(--fg-3)}.bbc.ok{color:var(--good)}.bbc.bad{color:var(--critical)}
-.acc{padding:12px 16px;border-bottom:1px solid var(--line)}.acc:last-child{border-bottom:0}
-.acch{all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;width:100%;cursor:pointer}
+.fstat{padding:16px 18px}.acc:last-child{border-bottom:0}
 .acch:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .acch .car{color:var(--fg-3);transition:transform .15s}.acch[aria-expanded="true"] .car{transform:rotate(90deg);color:var(--focus)}
 .accv{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 14px;font:12.5px var(--f-mono);color:var(--fg-3);align-items:baseline}.accv b{color:var(--fg);font-size:14px}
-.accd{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line-2)}
+
 .gt{display:inline-block;font:600 10.5px/1 var(--f-mono);letter-spacing:.04em;padding:3px 6px;border:1px solid currentColor;border-radius:4px;color:var(--fg-3);white-space:nowrap;vertical-align:1px}
 .gt.capex{color:var(--warn)}.gt.opex{color:var(--s1)}.gt.ok{color:var(--good)}.gt.com{color:var(--s6)}
 .brk{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
@@ -2328,10 +2345,10 @@ function execConta(code,m){const hm=histMes(m);if(hm){const v=Number(hm[code])||
 function finTotais(m){const t={all:{b:0,e:0},capex:{b:0,e:0},opex:{b:0,e:0}};const bud=F.cfg.budget.contas||{};
   CONTAS.forEach(a=>{const e=execConta(a.c,m).total,b=Number((bud[a.c]||{})[m])||0;t.all.b+=b;t.all.e+=e;t[a.g].b+=b;t[a.g].e+=e;});
   const g=(F.cfg.budget.geral||{})[m];if(g!=null&&g!=='')t.all.b=Number(g);return t;}
-function bbar(b,e){if(!(b>0))return `<div class="bb"><i class="n" style="width:100%"></i></div><div class="bbc">sem budget definido</div>`;
-  if(e>b)return `<div class="bb"><i class="o" style="width:100%"></i><u style="left:${(b/e*100).toFixed(1)}%"></u></div><div class="bbc bad">ultrapassou o budget em ${brl(e-b)}</div>`;
-  const u=(e/b*100);return `<div class="bb"><i class="u" style="width:${u.toFixed(1)}%"></i><i class="s" style="width:${(100-u).toFixed(1)}%"></i></div><div class="bbc ok">saldo: ainda pode gastar ${brl(b-e)} (${u.toFixed(0)}% usado)</div>`;}
-const statCard=(l,b,e,cls)=>`<div class="card fstat ${cls||''}"><div class="fl">${l}</div><div class="fv">${brl(e)}${b>0?` <small>/ ${brl(b)}</small>`:''}</div>${bbar(b,e)}</div>`;
+const usoCls=u=>u>100?'o':u>=85?'w':'u';
+function bbar(b,e){if(!(b>0))return `<div class="bb"><i class="n" style="width:0"></i></div><div class="bbc"><span>sem budget definido</span><span></span></div>`;
+  const u=e/b*100;return `<div class="bb"><i class="${usoCls(u)}" style="width:${Math.min(100,u).toFixed(1)}%"></i></div><div class="bbc ${u>100?'bad':''}"><span><b>${u.toFixed(0)}%</b> usado</span><span>${u>100?`<b>${brl0(e-b)}</b> acima do budget`:`<b>${brl0(b-e)}</b> disponível`}</span></div>`;}
+const statCard=(l,b,e,cls)=>`<div class="card fstat ${cls||''}"><div class="fl">${cls?`<span class="gt ${cls}">${cls.toUpperCase()}</span>`:''}${l}</div><div class="fv">${brl(e)}</div><div class="fsub">${b>0?'de '+brl(b)+' de budget':'sem budget definido'}</div>${bbar(b,e)}</div>`;
 
 function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
   const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{})]);
@@ -2481,14 +2498,17 @@ function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visua
 function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=canWrite===false?'disabled':'';
   const bm=c=>((bud.contas||{})[c]||{})[m];const semBud=!CONTAS.some(a=>Number(bm(a.c))>0);const bopen=F.bedit||(semBud&&canWrite!==false&&F.bedit!==0);
   const list=CONTAS.filter(a=>F.grp==='all'||a.g===F.grp);
-  box.innerHTML=`<div class="fstats">${statCard('Budget geral · '+mesCurto(m),t.all.b,t.all.e,'')}${statCard('CAPEX · '+mesCurto(m),t.capex.b,t.capex.e,'capex')}${statCard('OPEX · '+mesCurto(m),t.opex.b,t.opex.e,'opex')}</div>
+  box.innerHTML=`<div class="fstats">${statCard('Executado total · '+mesLabel(m),t.all.b,t.all.e,'')}${statCard(mesLabel(m),t.capex.b,t.capex.e,'capex')}${statCard(mesLabel(m),t.opex.b,t.opex.e,'opex')}</div>
    <div class="row"><label class="fld" style="width:190px"><span>Budget geral do mês (R$)</span><input type="text" inputmode="decimal" id="fin-bg" value="${(bud.geral||{})[m]??''}" placeholder="soma das contas" ${ro}></label>
      <button class="btn small" id="fin-bg-save" style="align-self:end" ${ro}>Salvar</button><button class="btn ${semBud?'primary':''}" id="fin-bedit" style="align-self:end" aria-expanded="${bopen}">${bopen?'Fechar edição do budget':'Editar budget de '+mesCurto(m)+' por conta'}</button><div class="grow"></div>
      <div class="seg" style="align-self:end">${[['all','Todas'],['capex','CAPEX'],['opex','OPEX']].map(([k,l])=>`<button data-grp="${k}" aria-pressed="${F.grp===k}">${l}</button>`).join('')}</div></div>
    ${bopen?budgetEditor(m,ro):''}
-   <div class="card" style="padding:0">${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);
-     return `<div class="acc" data-c="${a.c}"><button class="acch" aria-expanded="${op}"><span class="car">▸</span><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b>${a.c} · ${esc(a.n)}</b>${com?'<span class="gt com">comentário</span>':''}
-        <span class="accv"><span>LPU ${brl(x.lpu)}${x.ctr>0?' + contratos '+brl(x.ctr):''}</span><b>${brl(x.total)}</b>${b>0?`<span>/ ${brl(b)}</span>`:''}</span></button>${bbar(b,x.total)}
+   <div class="card acc-list" style="padding:0"><div class="acc-hd"><span></span><span>Conta contábil</span><span class="r">Executado</span><span class="r">Budget</span><span>Uso do budget</span><span class="r">Saldo</span></div>${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);const u=b>0?x.total/b*100:null;
+     return `<div class="acc ${op?'open':''}" data-c="${a.c}"><button class="acch" aria-expanded="${op}"><span class="car">▸</span>
+        <span class="acc-n"><span class="acc-t"><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b class="mono">${a.c}</b> ${esc(a.n)}${com?' <span class="gt com">comentário</span>':''}</span><span class="acc-s">${x.total?`LPU ${brl0(x.lpu)}${x.ctr>0?' · contratos '+brl0(x.ctr):''}`:'sem lançamentos no mês'}</span></span>
+        <span class="acc-e r">${brl(x.total)}</span><span class="acc-b r">${b>0?brl0(b):'<span class="hint">—</span>'}</span>
+        <span class="acc-p">${u==null?'<span class="hint">sem budget</span>':`<span class="bb"><i class="${usoCls(u)}" style="width:${Math.min(100,u).toFixed(1)}%"></i></span><span class="acc-pct ${u>100?'bad':''}">${u.toFixed(0)}%</span>`}</span>
+        <span class="acc-sal r ${u!=null&&u>100?'bad':''}">${u==null?'<span class="hint">—</span>':u>100?'− '+brl0(x.total-b):brl0(b-x.total)}</span></button>
        ${op?`<div class="accd"><div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
           <label class="fld"><span>Budget de ${mesCurto(m)} (R$)</span><input type="text" inputmode="decimal" data-k="b" value="${b||''}" ${ro}></label>
           <label class="fld"><span>LPU pela planilha de acompanhamento (R$)</span><input type="text" inputmode="decimal" data-k="base" value="${x.base??''}" placeholder="vazio = usa os PDFs lidos" ${ro}></label>
@@ -2507,7 +2527,7 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
        <label class="fld" style="min-width:300px"><span>Conta contábil</span><select id="cc-it"><option value="*" ${F.ccIt==='*'?'selected':''}>Todas as contas (${pc.length})</option>${pc.map(x=>`<option value="${esc(x.c)}" ${x.c===F.ccIt?'selected':''}>${esc((x.c?x.c+' · ':'')+x.n)} · ${x.L.length} itens</option>`).join('')}</select></label></div>
        <div class="hint" style="margin-bottom:6px">${sel.length} conta(s) · ${fmtN(sel.reduce((s,k)=>s+k.L.length,0))} itens · <b>${brl(totAll)}</b></div>
        <div class="tablewrap it-wrap"><table class="it cc-it"><thead><tr><th class="r">#</th><th>Código</th><th>Descrição</th><th>Un.</th><th class="r">Vezes usado</th><th class="r">Quantidade</th><th class="r">V. unit (mediana)</th><th class="r">Valor total</th><th class="r">% da conta</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;})()}
-   <p class="hint">Barra verde = saldo que ainda cabe no budget; se o executado passar do budget, a barra fica vermelha. O valor de LPU de cada conta vem dos PDFs lidos na aba "LPU · leitura de PDF"; quando o campo "LPU pela planilha de acompanhamento" está preenchido, ele é usado no lugar (é o caso dos meses de abril a setembro de 2026, lançados antes do leitor existir).</p>`;
+   <p class="hint">Barra verde até 85% do budget, amarela de 85% a 100% e vermelha acima do budget. Clique numa conta para editar o budget, ver a composição por terceiro e escrever comentário. O valor de LPU de cada conta vem dos PDFs lidos na aba "LPU · leitura de PDF"; quando o campo "LPU pela planilha de acompanhamento" está preenchido, ele é usado no lugar (é o caso dos meses de abril a setembro de 2026, lançados antes do leitor existir).</p>`;
   box.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>{F.grp=b.dataset.grp;renderFin();});
   const cci=$('#cc-it');if(cci)cci.onchange=()=>{F.ccIt=cci.value;renderFin();const e=$('#cc-it');if(e)e.scrollIntoView({block:'center'});};
   $('#fin-bedit').onclick=()=>{F.bedit=bopen?0:true;renderFin();};if(bopen)budgetWire(m);
