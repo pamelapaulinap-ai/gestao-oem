@@ -733,6 +733,7 @@ textarea{resize:vertical;width:100%}
 .btn.small{padding:3px 9px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .view{min-height:0;overflow:auto}
+.cod-contas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.cod-ct{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:4px}table.cod-t td{vertical-align:top}
 .nf-blk{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px;display:grid;gap:6px}.nf-mail{background:#fff;color:#000;border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-top:8px;overflow-x:auto}.nf-mail p{margin:0 0 10px}
 .cmp-grid{display:grid;gap:14px;margin-top:10px}.cmp-grid.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
 .cmp-p{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;min-width:0}.cmp-t{font-weight:700;font-size:14px}
@@ -2409,18 +2410,44 @@ function nfRender(m){const box=$('#fin-nf');if(!box)return;if(!F.nfOpen){box.inn
   $('#nf-t').onchange=e=>{F.nfTerc=e.target.value;nfRender(m);};$('#nf-pz').onchange=e=>{F.nfPrazo=e.target.value;nfRender(m);};
   $('#nf-xls').onclick=()=>nfExcel(m,tipo,sel);
   box.querySelectorAll('[data-nfc]').forEach(b=>b.onclick=async()=>{const el=box.querySelector(`[data-nfm="${CSS.escape(b.dataset.nfc)}"]`);const ok=await nfCopiar(el);toast(ok?'E-mail copiado: cole no Outlook':'Não consegui copiar: abra "Ver e-mail", selecione e copie');});}
+/* ---------- códigos SAP (lista para abrir ticket) ---------- */
+function codParse(buf,nome){const wb=XLSX.read(buf,{type:'array'});const sn=wb.SheetNames.find(n=>/LISTA DE C[ÓO]DIGOS\s*\(ATUALIZADO\)/i.test(n))||wb.SheetNames.find(n=>{const r=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null});return r.some(x=>x&&x.some(c=>/N[ºo°]\s*do\s*item/i.test(String(c||''))));});
+  if(!sn)throw new Error('aba');const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:''});const t=s=>String(s||'').replace(/\s+/g,' ').trim();
+  const hi=rows.findIndex(r=>r.some(c=>/N[ºo°]\s*do\s*item/i.test(c)));if(hi<0)throw new Error('cab');const H=rows[hi].map(c=>norm(c));const col=re=>H.findIndex(h=>re.test(h));
+  const cI=col(/^n.*item/),cD=col(/^descricao do item/),cG=col(/grupo/),cC=col(/^cod.*conta/),cN=col(/^descricao conta/),cU=col(/utiliza/),cF=col(/formato/);
+  const contas=[];rows.slice(0,hi).forEach(r=>{const i=r.findIndex(c=>/3\.1\.1\.2\.05\.\d{4}/.test(c));if(i<0)return;const x=r.slice(i).map(t).filter(Boolean);contas.push({c:(/(\d{4})\s*$/.exec(x[0])||[])[1]||x[0],cod:x[0],n:x[1]||'',uso:x.slice(2).join(' ')});});
+  const itens=rows.slice(hi+1).map(r=>({item:t(r[cI]),desc:t(r[cD]),grupo:t(r[cG]),cod:t(r[cC]),conta:(/(\d{4})\s*$/.exec(t(r[cC]))||[])[1]||'',contaN:t(r[cN]),uso:t(r[cU]),fmt:t(r[cF])})).filter(x=>/^[A-Z]{2,5}\d{3,}/i.test(x.item));
+  if(!itens.length)throw new Error('vazio');return {itens,contas,fonte:nome,aba:sn};}
+function finCodigos(box){const C=F.cfg.codigos||{};const ro=canWrite===false?'disabled':'';const it=C.itens||[];const q=norm(F.codq||'');const fc=F.codc||'';const fu=F.codNu!==false;
+  const L=it.filter(x=>(!fc||x.conta===fc)&&(!fu||!/N[ÃA]O USAR/i.test(x.fmt))&&(!q||norm([x.item,x.desc,x.cod,x.contaN,x.uso,x.fmt].join(' ')).includes(q)));
+  const contas=[...new Map(it.map(x=>[x.conta,x.contaN||(CONTA[x.conta]||{}).n||''])).entries()].filter(([c])=>c).sort();
+  box.innerHTML=`<div class="card"><div class="row" style="align-items:flex-start"><div class="grow"><h3 style="margin:0">Códigos SAP para abrir ticket</h3><p class="hint" style="margin:4px 0 0">${it.length?`${it.length} códigos · fonte: ${esc(C.fonte||'planilha')}${C.em?' · atualizado em '+new Date(C.em).toLocaleDateString('pt-BR'):''}`:'Nenhuma lista carregada ainda.'}</p></div>
+      ${ro?'':`<label class="btn">${it.length?'Atualizar pela planilha':'Carregar planilha'}<input type="file" id="cod-file" accept=".xlsx,.xls" hidden></label>`}</div>
+    <p class="hint" style="margin:8px 0 0">Envie a <b>ACOMPANHAMENTO M.O - GERAL.xlsx</b> (aba "LISTA DE CODIGOS (ATUALIZADO)"). A lista atual é substituída pela da planilha.</p>${F.codMsg?`<p class="err" style="margin:6px 0 0">${esc(F.codMsg)}</p>`:''}</div>
+   ${(C.contas||[]).length?`<div class="card"><h3>Quando usar cada conta</h3><div class="cod-contas">${C.contas.map(a=>`<div class="cod-ct"><div><span class="gt ${(CONTA[a.c]||{}).g||''}">${esc(a.c)}</span> <b>${esc(a.n)}</b></div><div class="hint mono">${esc(a.cod)}</div>${a.uso?`<div style="font-size:13px">${esc(a.uso)}</div>`:''}</div>`).join('')}</div></div>`:''}
+   ${it.length?`<div class="card"><div class="row" style="gap:10px;align-items:flex-end"><label class="fld grow" style="min-width:220px"><span>Buscar</span><input type="text" id="cod-q" value="${esc(F.codq||'')}" placeholder="Código, descrição, conta ou uso"></label>
+      <label class="fld" style="min-width:240px"><span>Conta contábil</span><select id="cod-c"><option value="">Todas</option>${contas.map(([c,n])=>`<option value="${c}" ${c===fc?'selected':''}>${c} · ${esc(n)}</option>`).join('')}</select></label>
+      <label class="hint" style="display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" id="cod-nu" ${fu?'checked':''}> Esconder "não usar"</label></div>
+     <div class="hint" style="margin:8px 0">${L.length} código(s)</div>
+     <div class="tablewrap"><table class="cod-t"><thead><tr><th>Código</th><th>Descrição do item</th><th>Conta contábil</th><th>Utilização</th><th>Formato</th><th></th></tr></thead><tbody>${L.map((x,i)=>{const nu=/N[ÃA]O USAR/i.test(x.fmt);return `<tr ${nu?'style="opacity:.5"':''}><td class="mono"><b>${esc(x.item)}</b></td><td>${esc(x.desc)}</td><td><span class="gt ${(CONTA[x.conta]||{}).g||''}">${esc(x.conta)}</span> ${esc(x.contaN)}<div class="hint mono">${esc(x.cod)}</div></td><td class="hint">${esc(x.uso)}</td><td>${x.fmt?`<span class="gt" style="${nu?'color:var(--critical);border-color:var(--critical)':'color:var(--good);border-color:var(--good)'}">${esc(x.fmt)}</span>`:''}</td>
+       <td class="r"><button class="btn small" data-codcp="${i}" title="Copia código, descrição e conta">Copiar</button></td></tr>`;}).join('')||'<tr><td colspan="6" class="hint">Nenhum código encontrado.</td></tr>'}</tbody></table></div></div>`:''}`;
+  const fi=$('#cod-file');if(fi)fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(noEdit())return;if(!window.XLSX){toast('Leitor de Excel indisponível nesta visualização');return;}
+    try{const r=codParse(new Uint8Array(await f.arrayBuffer()),f.name);await finWrite('codigos',{itens:r.itens,contas:r.contas,fonte:r.fonte,em:new Date().toISOString()});F.codMsg='';toast(r.itens.length+' códigos carregados');}catch(e){console.error(e);F.codMsg='Não encontrei a aba "LISTA DE CODIGOS (ATUALIZADO)" com a coluna "Nº do item".';renderFin();}};
+  const qi=$('#cod-q');if(qi)qi.oninput=()=>{F.codq=qi.value;const p=qi.selectionStart;finCodigos(box);const n=$('#cod-q');n.focus();n.setSelectionRange(p,p);};
+  const cs=$('#cod-c');if(cs)cs.onchange=()=>{F.codc=cs.value;finCodigos(box);};const nu=$('#cod-nu');if(nu)nu.onchange=()=>{F.codNu=nu.checked;finCodigos(box);};
+  box.querySelectorAll('[data-codcp]').forEach(b=>b.onclick=async()=>{const x=L[+b.dataset.codcp];const txt=`${x.item} - ${x.desc} - ${x.cod} ${x.contaN}`.trim();let ok=false;try{await navigator.clipboard.writeText(txt);ok=true;}catch(e){try{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');ta.remove();}catch(e2){}}toast(ok?'Copiado: '+x.item:'Não consegui copiar');});}
 function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
   const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{})]);
   const ger=F.sub==='geral';
-  const tcx=F.sub==='terc';box.innerHTML=`<div class="row">${tcx?'':ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
-    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contrato fixo'],['terc','Terceiros e técnicos']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
+  const tcx=F.sub==='terc'||F.sub==='cod';box.innerHTML=`<div class="row">${tcx?'':ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
+    <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contrato fixo'],['terc','Terceiros e técnicos'],['cod','Códigos SAP']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
     <div class="grow"></div><button class="btn ${F.nfOpen?'primary':''}" id="fin-nfb" style="align-self:end" ${ger?'hidden':''}>Solicitar NF</button><button class="btn" id="fin-xls" style="align-self:end" ${tcx||F.sub==='itens'?'hidden':''}>${ger?'Baixar Excel do ano':'Baixar Excel do mês'}</button></div><div id="fin-nf"></div><div id="fin-sub" style="display:grid;gap:14px"></div>`;
   if($('#fin-mes'))$('#fin-mes').onchange=e=>{F.mes=e.target.value;F.open.clear();renderFin();};
   if($('#fg-ano'))$('#fg-ano').onchange=e=>{F.ano=e.target.value;F.gsel=null;renderFin();};
   box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{F.sub=b.dataset.sub;renderFin();});
   $('#fin-xls').onclick=()=>ger?finExcelGeral():finExcelMes(m);
   $('#fin-nfb').onclick=()=>{F.nfOpen=!F.nfOpen;renderFin();};
-  ({geral:finGeral,conta:finConta,lpu:finLpuComItens,ctr:finCtr,terc:finTerc})[F.sub]($('#fin-sub'),m);if(!ger)nfRender(tcx?(F.mes||mesAtual()):m);}
+  ({geral:finGeral,conta:finConta,lpu:finLpuComItens,ctr:finCtr,terc:finTerc,cod:finCodigos})[F.sub]($('#fin-sub'),m);if(!ger)nfRender(tcx?(F.mes||mesAtual()):m);}
 
 
 /* ---------- visão geral (todos os meses) ---------- */
@@ -3442,7 +3469,7 @@ function combParseXlsx(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:
 function dashComb(box){const ms=combMeses();if(!ms.length){box.innerHTML='<div class="card"><p class="hint" style="margin:0">Sem dados de combustível.</p></div>';return;}if(!F.cmes||!F.comb[F.cmes])F.cmes=ms[ms.length-1];const ano=combAno();
   box.innerHTML=`${combAnoHtml(ano,true)}<div class="card"><h3>Gasto mensal de combustível por setor</h3>${combLegend()}<div class="chart" id="dc-chart" style="overflow-x:auto"></div></div><div><button class="btn primary" id="dc-open">Abrir Combustível</button></div>`;
   combAnoWire(box,renderDash,ano);box.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{const k=b.dataset.cat;F.chide.has(k)?F.chide.delete(k):F.chide.add(k);renderDash();});combChart('#dc-chart',ms.slice(-24));$('#dc-open').onclick=()=>showView('comb');}
-function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{},terceiros:{},hist:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
+function finInit(){db.collection('fin').onSnapshot(q=>{const c={budget:{},contratos:{},combmeta:{},terceiros:{},hist:{},codigos:{}};q.docs.forEach(d=>{c[d.id]=d.data()||{};});F.cfg=c;finRefresh();},()=>{});
   db.collection('lpu').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.lpu=o;finRefresh();},()=>{});
   db.collection('combustivel').onSnapshot(q=>{const o={};q.docs.forEach(d=>o[d.id]=d.data());F.comb=o;finRefresh();},()=>{});}
 
