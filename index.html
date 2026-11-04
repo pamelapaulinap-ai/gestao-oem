@@ -2341,7 +2341,7 @@ function lpuDup(r,k){if(r.dupOk)return null;const L=F.lidos;if(lpuSemCab(r).leng
 /* ---------- LPU lida dos PDFs ---------- */
 const lpuMes=m=>Object.entries(F.lpu).filter(([,r])=>r.mes===m).map(([id,r])=>({...terRes(r),id})).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
 const lpuConta=(code,m)=>lpuMes(m).filter(r=>r.conta===code).reduce((s,r)=>s+(r.total||0),0);
-function compConta(code,m){const o=new Map();const add=(k,v,tipo)=>{if(!v)return;const x=o.get(k)||{n:k,lpu:0,ctr:0};x[tipo]+=v;o.set(k,x);};
+function compConta(code,m){if(histMes(m)){const L=(((F.cfg.hist||{}).terc||{})[m]||{})[code];if(Array.isArray(L))return L.map(([n,v])=>({n,lpu:0,ctr:0,sap:Number(v)||0,t:Number(v)||0})).sort((a,b)=>b.t-a.t);}const o=new Map();const add=(k,v,tipo)=>{if(!v)return;const x=o.get(k)||{n:k,lpu:0,ctr:0};x[tipo]+=v;o.set(k,x);};
   lpuMes(m).filter(r=>r.conta===code).forEach(r=>add(r.empresa||'(sem terceiro)',r.total||0,'lpu'));
   const TL=(F.cfg.terceiros||{}).lista||{};contratosMes(m).filter(c=>c.conta===code).forEach(c=>{const h=c.terc&&TL[c.terc]?{t:TL[c.terc]}:terMatch({empresa:c.nome});add(h&&h.t?h.t.nome:c.nome,ctrCalc(c,m).total,'ctr');});
   return [...o.values()].map(x=>({...x,t:x.lpu+x.ctr})).sort((a,b)=>b.t-a.t);}
@@ -2469,7 +2469,7 @@ function finCodigos(box){const C=F.cfg.codigos||{};const ro=canWrite===false?'di
   const cs=$('#cod-c');if(cs)cs.onchange=()=>{F.codc=cs.value;finCodigos(box);};const nu=$('#cod-nu');if(nu)nu.onchange=()=>{F.codNu=nu.checked;finCodigos(box);};box.querySelectorAll('[data-codf]').forEach(b=>b.onclick=()=>{F.codF=b.dataset.codf;finCodigos(box);});
   box.querySelectorAll('[data-codcp]').forEach(b=>b.onclick=async()=>{const x=L[+b.dataset.codcp];const txt=`${x.item} - ${x.desc} - ${x.cod} ${x.contaN}`.trim();let ok=false;try{await navigator.clipboard.writeText(txt);ok=true;}catch(e){try{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');ta.remove();}catch(e2){}}toast(ok?'Copiado: '+x.item:'Não consegui copiar');});}
 function renderFin(){const box=$('#fin-body');if(!box)return;const m=F.mes;
-  const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{})]);
+  const ms=mesesOpts([m,...Object.values(F.lpu).map(r=>r.mes),...Object.keys(F.cfg.budget.geral||{}),...Object.keys((F.cfg.hist||{}).meses||{}).filter(x=>(F.cfg.hist.meses||{})[x])]);
   const ger=F.sub==='geral';
   const tcx=F.sub==='terc'||F.sub==='cod';box.innerHTML=`<div class="row">${tcx?'':ger?anoSel(finAno()):`<label class="fld" style="min-width:150px"><span>Mês</span><select id="fin-mes">${ms.map(x=>`<option value="${x}" ${x===m?'selected':''}>${mesLabel(x)}</option>`).join('')}</select></label>`}
     <div class="seg" role="group" aria-label="Parte do financeiro" style="align-self:end">${[['geral','Visão geral'],['conta','Conta contábil'],['lpu','LPU · leitura de PDF'],['ctr','Contrato fixo'],['terc','Terceiros e técnicos'],['cod','Códigos SAP']].map(([k,l])=>`<button data-sub="${k}" aria-pressed="${F.sub===k}">${l}</button>`).join('')}</div>
@@ -2624,7 +2624,7 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
    ${bopen?budgetEditor(m,ro):''}
    <div class="card acc-list" style="padding:0"><div class="acc-hd"><span></span><span>Conta contábil</span><span class="r">Executado</span><span class="r">Budget</span><span>Uso do budget</span><span class="r">Saldo</span></div>${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);const u=b>0?x.total/b*100:null;
      return `<div class="acc ${op?'open':''}" data-c="${a.c}"><button class="acch" aria-expanded="${op}"><span class="car">▸</span>
-        <span class="acc-n"><span class="acc-t"><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b class="mono">${a.c}</b> ${esc(a.n)}${com?' <span class="gt com">comentário</span>':''}</span><span class="acc-s">${x.total?`LPU ${brl0(x.lpu)}${x.ctr>0?' · contratos '+brl0(x.ctr):''}`:'sem lançamentos no mês'}</span></span>
+        <span class="acc-n"><span class="acc-t"><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b class="mono">${a.c}</b> ${esc(a.n)}${com?' <span class="gt com">comentário</span>':''}</span><span class="acc-s">${x.total?(x.hist?'pago · histórico SAP':`LPU ${brl0(x.lpu)}${x.ctr>0?' · contratos '+brl0(x.ctr):''}`):'sem lançamentos no mês'}</span></span>
         <span class="acc-e r">${brl(x.total)}</span><span class="acc-b r">${b>0?brl0(b):'<span class="hint">—</span>'}</span>
         <span class="acc-p">${u==null?'<span class="hint">sem budget</span>':`<span class="bb"><i class="${usoCls(u)}" style="width:${Math.min(100,u).toFixed(1)}%"></i></span><span class="acc-pct ${u>100?'bad':''}">${u.toFixed(0)}%</span>`}</span>
         <span class="acc-sal r ${u!=null&&u>100?'bad':''}">${u==null?'<span class="hint">—</span>':u>100?'− '+brl0(x.total-b):brl0(b-x.total)}</span></button>
@@ -2634,7 +2634,7 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
           <div class="fld"><span>LPU lida dos PDFs</span><div class="mono" style="padding:7px 0">${brl(x.pdf)} · ${lpuMes(m).filter(r=>r.conta===a.c).length} relatório(s)</div></div></div>
           ${(()=>{const cp=compConta(a.c,m);const tt=cp.reduce((s,x)=>s+x.t,0);if(!cp.length)return '<p class="hint" style="margin:10px 0 0">Nenhum terceiro lançado nesta conta no mês.</p>';const mx=Math.max(...cp.map(x=>x.t));
             return `<div class="comp"><div class="comp-h"><b>Composição por terceiro</b><span class="hint">${cp.length} terceiro(s) · ${brl(tt)}${x.base!=null?' · a LPU desta conta está pela planilha de acompanhamento ('+brl(x.base)+'); o detalhe abaixo vem dos PDFs lidos':''}</span></div>
-              ${cp.map(c=>`<div class="comp-r"><span class="comp-n" title="${esc(c.n)}">${esc(c.n)}</span><span class="comp-b"><i style="width:${(c.t/mx*100).toFixed(1)}%"></i></span><b class="mono">${brl(c.t)}</b><span class="hint mono">${tt?Math.round(c.t/tt*100):0}%</span><span class="hint">${[c.lpu?'LPU '+brl0(c.lpu):'',c.ctr?'contrato fixo '+brl0(c.ctr):''].filter(Boolean).join(' + ')}</span></div>`).join('')}</div>`;})()}
+              ${cp.map(c=>`<div class="comp-r"><span class="comp-n" title="${esc(c.n)}">${esc(c.n)}</span><span class="comp-b"><i style="width:${(c.t/mx*100).toFixed(1)}%"></i></span><b class="mono">${brl(c.t)}</b><span class="hint mono">${tt?Math.round(c.t/tt*100):0}%</span><span class="hint">${[c.lpu?'LPU '+brl0(c.lpu):'',c.ctr?'contrato fixo '+brl0(c.ctr):'',c.sap?'pago (histórico SAP)':''].filter(Boolean).join(' + ')}</span></div>`).join('')}</div>`;})()}
           <label class="fld" style="margin-top:10px"><span>Comentário</span><textarea data-k="com" rows="2" placeholder="Ex.: contrato reajustado, obra extra…" ${ro}>${esc(com)}</textarea></label>
           <div class="row" style="margin-top:10px"><button class="btn primary small" data-save ${ro}>Salvar</button><span class="hint">O executado soma a LPU com os contrato fixo vinculados a esta conta.</span></div></div>`:''}</div>`;}).join('')}</div>
    ${(()=>{const pc=itensPorConta(lpuMes(m)).filter(k=>F.grp==='all'||k.g===F.grp);if(!pc.length)return '';if(F.ccIt==null||(F.ccIt!=='*'&&!pc.some(k=>k.c===F.ccIt)))F.ccIt='*';
@@ -3231,18 +3231,18 @@ function finExcelMes(m){if(!window.XLSX){toast('Excel indisponível nesta visual
   xlsSave(wb,`financeiro_om_${m}.xlsx`,{resumo:resumoMes(m)});}
 /* ---------- histórico de executado (planilha Mês/Ano · Conta contábil · Total) ---------- */
 const histMes=m=>((F.cfg.hist||{}).meses||{})[m];
-function histParse(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:true});const out={};const desconh=new Set();let n=0;
+function histParse(buf,nome){const wb=XLSX.read(buf,{type:'array',cellDates:true});const out={},terc={};const desconh=new Set();let n=0;
   for(const sn of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});const hi=rows.findIndex(r=>r&&r.some(c=>/m[êe]s/i.test(String(c||'')))&&r.some(c=>/conta/i.test(String(c||''))));if(hi<0)continue;
-    const H=rows[hi].map(c=>norm(String(c||'')));const cM=H.findIndex(h=>/^mes/.test(h)),cC=H.findIndex(h=>/conta/.test(h)&&!/descr/.test(h));let cV=H.findIndex(h=>/total|valor|soma/.test(h));if(cV<0)cV=H.length-1;if(cM<0||cC<0)continue;
+    const H=rows[hi].map(c=>norm(String(c||'')));const cM=H.findIndex(h=>/^mes/.test(h)),cC=H.findIndex(h=>/conta/.test(h)&&!/descr/.test(h));let cV=H.findIndex(h=>/total|valor|soma/.test(h));if(cV<0)cV=H.length-1;if(cM<0||cC<0)continue;const cT=H.findIndex(h=>/terceir|fornecedor|prestador/.test(h));
     for(const r of rows.slice(hi+1)){if(!r)continue;const d=r[cM];let m=null;if(d instanceof Date){const x=new Date(d.getTime()+12*3600e3);m=x.getUTCFullYear()+'-'+String(x.getUTCMonth()+1).padStart(2,'0');}else{const s=String(d||'');let x=/(\d{1,2})\/(\d{4})/.exec(s);if(x)m=x[2]+'-'+x[1].padStart(2,'0');else{x=/^(\d{4})-(\d{2})/.exec(s);if(x)m=x[1]+'-'+x[2];}}
       const cod=(/(\d{4})\s*$/.exec(String(r[cC]||''))||[])[1];const v=Number(r[cV]);if(!m||!cod||!isFinite(v))continue;if(!CONTA[cod]){desconh.add(cod);continue;}
-      const o=out[m]=out[m]||{};o[cod]=Math.round(((o[cod]||0)+v)*100)/100;n++;}}
+      const o=out[m]=out[m]||{};o[cod]=Math.round(((o[cod]||0)+v)*100)/100;n++;if(cT>=0){const nm=String(r[cT]||'').trim()||'(sem terceiro)';const t=(terc[m]=terc[m]||{});const tc=(t[cod]=t[cod]||{});tc[nm]=Math.round(((tc[nm]||0)+v)*100)/100;}}}
   if(!n)throw new Error('vazio');const anos={};Object.keys(out).sort().forEach(m=>{(anos[m.slice(0,4)]=anos[m.slice(0,4)]||[]).push(m);});
   const temDado=m=>{if(histMes(m))return false;return CONTAS.some(a=>execConta(a.c,m).total>0);};
-  const sel=new Set(Object.keys(anos).filter(a=>!anos[a].some(temDado)));return {nome,meses:out,anos,sel,desconh:[...desconh],temDado};}
+  const sel=new Set(Object.keys(anos).filter(a=>!anos[a].some(temDado)));return {nome,meses:out,terc,anos,sel,desconh:[...desconh],temDado};}
 function histCard(ro){const H=F.hist;const ex=(F.cfg.hist||{}).meses||{};const exAnos=[...new Set(Object.keys(ex).map(m=>m.slice(0,4)))].sort();
   const tot=o=>Object.values(o||{}).reduce((s,v)=>s+(Number(v)||0),0);
-  return `<div class="card" id="hist-card"><h3>Histórico de executado</h3><p class="hint" style="margin:0 0 8px">Envie a planilha com Mês/Ano, Conta contábil e Total para trazer anos anteriores. Nos meses importados, o executado de cada conta passa a ser o da planilha.</p>
+  return `<div class="card" id="hist-card"><h3>Histórico de executado</h3><p class="hint" style="margin:0 0 8px">Envie a planilha com Mês/Ano, Conta contábil, Terceiro e Total para trazer anos anteriores (a coluna Terceiro é opcional; com ela, ao abrir a conta aparecem os terceiros pagos). Nos meses importados, o executado de cada conta passa a ser o da planilha.</p>
    ${exAnos.length?`<p style="margin:0 0 8px">Já importado: ${exAnos.map(a=>`<b>${a}</b> (${Object.keys(ex).filter(m=>m.startsWith(a)).length} meses · ${brl0(Object.entries(ex).filter(([m])=>m.startsWith(a)).reduce((s,[,o])=>s+tot(o),0))})${ro?'':` <button class="btn small" data-hdel="${a}" style="color:var(--critical)">remover</button>`}`).join(' · ')}</p>`:''}
    ${ro?'':`<div class="row"><label class="btn">Escolher planilha (.xlsx)<input type="file" id="hist-file" accept=".xlsx,.xls" hidden></label><span class="hint" id="hist-msg">${esc(F.histMsg||'')}</span></div>`}
    ${H?`<div class="tm-blk" style="margin-top:10px"><div><b>${esc(H.nome)}</b> · marque os anos que vão para o painel:</div>
@@ -3257,11 +3257,11 @@ function histDifExcel(){const H=F.hist;if(!H||!window.XLSX)return;const L=[['Mê
 function histWire(){const fi=$('#hist-file');if(fi)fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(!window.XLSX){toast('Leitor de Excel indisponível nesta visualização');return;}
     try{F.hist=histParse(new Uint8Array(await f.arrayBuffer()),f.name);F.histMsg='';}catch(e){console.error(e);F.hist=null;F.histMsg='Não reconheci a planilha: ela precisa das colunas Mês/Ano, Conta Contábil e Total.';}renderFin();setTimeout(()=>{const c=$('#hist-card');if(c)c.scrollIntoView({block:'center'});},0);};
   document.querySelectorAll('[data-hy]').forEach(c=>c.onchange=()=>{c.checked?F.hist.sel.add(c.dataset.hy):F.hist.sel.delete(c.dataset.hy);});
-  const ok=$('#hist-ok');if(ok)ok.onclick=async()=>{if(noEdit())return;const H=F.hist;const ms={};Object.entries(H.meses).forEach(([m,o])=>{if(H.sel.has(m.slice(0,4)))ms[m]=o;});if(!Object.keys(ms).length){toast('Marque pelo menos um ano');return;}
-    ok.disabled=true;try{await finWrite('hist',{meses:ms,fonte:H.nome,em:new Date().toISOString()});toast(`Histórico importado: ${Object.keys(ms).length} meses`);F.hist=null;F.ano=[...H.sel].sort().pop();F.gsel=null;renderFin();}catch(e){handleWriteErr(e);ok.disabled=false;}};
+  const ok=$('#hist-ok');if(ok)ok.onclick=async()=>{if(noEdit())return;const H=F.hist;const ms={},ts={};const temT=Object.keys(H.terc||{}).length>0;Object.entries(H.meses).forEach(([m,o])=>{if(H.sel.has(m.slice(0,4))){ms[m]=o;if(temT){const t={};CONTAS.forEach(a=>{const x=(H.terc[m]||{})[a.c];t[a.c]=x?Object.entries(x).filter(([,v])=>v):null;});ts[m]=t;}}});if(!Object.keys(ms).length){toast('Marque pelo menos um ano');return;}
+    ok.disabled=true;try{await finWrite('hist',temT?{meses:ms,terc:ts,fonte:H.nome,em:new Date().toISOString()}:{meses:ms,fonte:H.nome,em:new Date().toISOString()});toast(`Histórico importado: ${Object.keys(ms).length} meses${temT?' com terceiros':''}`);F.hist=null;F.ano=[...H.sel].sort().pop();F.gsel=null;renderFin();}catch(e){handleWriteErr(e);ok.disabled=false;}};
   const no=$('#hist-no');if(no)no.onclick=()=>{F.hist=null;renderFin();};const dif=$('#hist-dif');if(dif)dif.onclick=histDifExcel;
   document.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{const a=b.dataset.hdel;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='confirmar remoção de '+a;setTimeout(()=>{b.dataset.ok='';b.textContent='remover';},4000);return;}if(noEdit())return;
-    const p={};Object.keys((F.cfg.hist||{}).meses||{}).filter(m=>m.startsWith(a)).forEach(m=>p[m]=null);try{await finWrite('hist',{meses:p});toast('Histórico de '+a+' removido');}catch(e){handleWriteErr(e);}});}
+    const p={};Object.keys((F.cfg.hist||{}).meses||{}).filter(m=>m.startsWith(a)).forEach(m=>p[m]=null);try{await finWrite('hist',{meses:p,terc:p});toast('Histórico de '+a+' removido');}catch(e){handleWriteErr(e);}});}
 /* ---------- comparativo entre anos ---------- */
 const CMP_MET=()=>[['all','Total executado'],['capex','CAPEX'],['opex','OPEX'],['bud','Budget total'],...CONTAS.map(a=>['c:'+a.c,a.c+' · '+a.n])];
 const CMP_MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
