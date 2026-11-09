@@ -2603,8 +2603,34 @@ function ovWire(){const b=$('#ov-ns');if(!b)return;const sel=$('#ov-nm'),ta=$('#
   b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('budget',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${cmpHtml()}${finCaixa(ano)}${histCard(canWrite===false)}`;
-  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);cmpWire(renderFin);histWire();}
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${cmpHtml()}${finCaixa(ano)}${histCard(canWrite===false)}${bkpCard(canWrite===false)}`;
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);cmpWire(renderFin);histWire();bkpWire();}
+/* ---------- cópia de segurança do financeiro (backup / restaurar) ---------- */
+function bkpDocs(){const d={};Object.entries(F.cfg||{}).forEach(([k,v])=>{if(v&&Object.keys(v).length)d['fin/'+k]=v;});Object.entries(F.lpu||{}).forEach(([k,v])=>{if(v)d['lpu/'+k]=v;});Object.entries(F.comb||{}).forEach(([k,v])=>{if(v)d['combustivel/'+k]=v;});return d;}
+function bkpCard(ro){const d=bkpDocs();const n=k=>Object.keys(d).filter(p=>p.startsWith(k+'/')).length;
+  return `<details class="card" id="bkp-card" ${F.bkpOpen?'open':''}><summary><b>Cópia de segurança do financeiro</b> <span class="hint">· baixa tudo o que está no financeiro num arquivo (.json) para guardar ou levar para outro sistema</span></summary>
+   <p class="hint" style="margin:10px 0">Agora: ${n('fin')} configuração(ões) (budget, contratos, terceiros, histórico, códigos, combustível), ${n('lpu')} relatório(s) de LPU e ${n('combustivel')} mês(es) de combustível.</p>
+   <div class="row"><label class="hint" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="bkp-anx" checked> incluir os anexos (PDFs de LPU e NFs)</label><button class="btn primary" id="bkp-go">Baixar backup</button></div>
+   ${ro?'':`<div class="row" style="margin-top:10px"><label class="btn"><input type="file" id="bkp-file" accept=".json,application/json" hidden>Restaurar de um backup</label><button class="btn" id="bkp-rest" ${F.bkpFile?'':'disabled'}>Restaurar</button></div>`}
+   <p class="hint" id="bkp-msg" style="margin:8px 0 0">${F.bkpFile?'Arquivo: '+esc(F.bkpFile.name):''}</p></details>`;}
+async function bkpBaixar(){const msg=t=>{const e=$('#bkp-msg');if(e)e.textContent=t;};const docs=bkpDocs();const blobs={};
+  if($('#bkp-anx')&&$('#bkp-anx').checked){const ids=[...new Set((JSON.stringify(docs).match(/\/_blob\/[A-Za-z0-9]+/g)||[]))];let i=0;
+    for(const u of ids){i++;msg(`Copiando anexos ${i} de ${ids.length}…`);try{const r=await fetch(u);if(r.ok)blobs[u]=await r.text();}catch(e){console.error(e);}}}
+  const out={tipo:'gestao-oem-backup',modulo:'financeiro',versao:1,gerado:new Date().toISOString(),colecoes:['fin','lpu','combustivel'],docs,blobs};
+  const nome=`backup_financeiro_${hoje()}.json`;msg('');await salvar(nome,new Blob([JSON.stringify(out)],{type:'application/json'}),'application/json');
+  toast(`Backup gerado: ${Object.keys(docs).length} documentos${Object.keys(blobs).length?' e '+Object.keys(blobs).length+' anexos':''}`);}
+async function bkpRestaurar(file,b){const msg=t=>{const e=$('#bkp-msg');if(e)e.textContent=t;};let j;try{j=JSON.parse(await file.text());}catch(e){msg('Arquivo inválido.');return;}
+  if(!j||j.tipo!=='gestao-oem-backup'||!j.docs){msg('Este arquivo não é um backup do Gestão O&M.');return;}
+  const ok=Object.entries(j.docs).filter(([p])=>/^(fin|lpu|combustivel)\/[A-Za-z0-9_.:-]+$/.test(p));
+  if(b.dataset.ok!=='1'){b.dataset.ok='1';b.classList.add('primary');msg(`Vai gravar ${ok.length} documento(s) de ${fmtData((j.gerado||'').slice(0,10))}. Os de mesmo nome serão substituídos pela versão do backup. Clique de novo em "Restaurar" para confirmar.`);setTimeout(()=>{if(b.isConnected){b.dataset.ok='';b.classList.remove('primary');}},15000);return;}
+  b.disabled=true;let txt=JSON.stringify(Object.fromEntries(ok));const bl=Object.entries(j.blobs||{});let i=0;
+  for(const [u,c] of bl){i++;msg(`Enviando anexos ${i} de ${bl.length}…`);try{const blob=/^data:/.test(c)?await (await fetch(c)).blob():new Blob([c],{type:'text/plain'});const r=await assets.upload(blob);txt=txt.split(u).join(r.url);}catch(e){console.error(e);}}
+  const D=JSON.parse(txt);i=0;const L=Object.entries(D);for(const [p,d] of L){i++;if(i%20===0||i===L.length)msg(`Gravando ${i} de ${L.length}…`);try{await db.doc(p).set(d);}catch(e){handleWriteErr(e);b.disabled=false;return;}}
+  msg('');F.bkpFile=null;toast(`Backup restaurado: ${L.length} documentos`);renderFin();}
+function bkpWire(){const g=$('#bkp-go');if(!g)return;const cd=$('#bkp-card');cd.ontoggle=()=>{F.bkpOpen=cd.open;};g.onclick=async()=>{g.disabled=true;try{await bkpBaixar();}catch(e){console.error(e);toast('Não foi possível gerar o backup');}g.disabled=false;};
+  const fi=$('#bkp-file'),b=$('#bkp-rest');if(!fi)return;fi.onchange=()=>{F.bkpFile=fi.files[0]||null;const f0=F.bkpFile;b.disabled=!f0;b.dataset.ok='';$('#bkp-msg').textContent=f0?'Arquivo: '+f0.name:'';};
+  b.onclick=async()=>{if(noEdit()||!F.bkpFile)return;await bkpRestaurar(F.bkpFile,$('#bkp-rest')||b);};}
+
 function finExcelGeral(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const ano=finAno();const G=finGeralDados(ano);const wb=XLSX.utils.book_new();const n=G.ms.length;
   const H=['Conta contábil','Natureza',...G.ms.map(mesCurto),'Total'];const sum=a=>a.reduce((s,v)=>s+v,0);
   const A=[H,...G.rows.map(r=>[r.a.c+' · '+r.a.n,r.a.g.toUpperCase(),...r.v.map(x=>x.e),sum(r.v.map(x=>x.e))]),[],
