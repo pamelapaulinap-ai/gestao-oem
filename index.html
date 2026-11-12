@@ -895,6 +895,10 @@ details.legend>summary{cursor:pointer;font-weight:600;list-style-position:inside
 .grow{flex:1}
 .side-body{overflow:auto;min-height:0;flex:1}
 .count{font-size:13px;color:var(--fg-3)}
+#em-alert:not(:empty){display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:#b3261e;color:#fff;font-size:12px;line-height:18px;font-weight:700}
+.em-alertcard{border:2px solid var(--critical)!important;background:color-mix(in srgb,var(--critical) 7%,var(--card,transparent))}
+.em-alertcard li{margin:4px 0}
+tr.em-resp td:first-child{box-shadow:inset 4px 0 0 var(--critical)}
 #em-badge:not(:empty){display:inline-block;min-width:20px;margin-left:6px;padding:1px 6px;border-radius:99px;background:var(--critical);color:#fff;font-size:12px;line-height:18px;text-align:center}
 .em-kpis{display:flex;flex-wrap:wrap;gap:10px}.em-kpis div{background:var(--surface-2);border-radius:var(--r);padding:8px 12px;min-width:120px}.em-kpis b{display:block;font:700 22px/1.1 var(--f-display)}.em-kpis span{font-size:12.5px;color:var(--fg-3)}
 tr.em-canc td{background:color-mix(in srgb,var(--critical) 13%,transparent)}
@@ -1107,7 +1111,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
         <div id="ruas-box" hidden style="display:grid;gap:14px"></div>
         </div>
         <div id="imp-notif"></div>
-        <div class="seg" id="lista-tabs" role="tablist" style="margin:2px 0 12px"><button type="button" data-lt="notif" aria-pressed="true">Notificações</button><button type="button" data-lt="email" aria-pressed="false">Recebimento de e-mail <span id="em-badge"></span></button></div>
+        <div class="seg" id="lista-tabs" role="tablist" style="margin:2px 0 12px"><button type="button" data-lt="notif" aria-pressed="true">Notificações</button><button type="button" data-lt="email" aria-pressed="false">Recebimento de e-mail <span id="em-alert" title="Precisam de resposta"></span><span id="em-badge" title="A revisar"></span></button></div>
         <div class="card" id="notif-box"><div class="tablewrap" id="tbl-notif"></div></div>
         <div id="email-box" hidden style="display:grid;gap:14px"></div>
       </div>
@@ -3959,39 +3963,48 @@ function refresh(){renderMarkers();renderSinal();renderSide();renderView();}
      - sem rede ou incerto -> fica "A revisar" até alguém confirmar com rede / sem rede.
    Avisos de cancelamento marcam a notificação de mesmo número como CANCELADO (e a linha fica vermelha). */
 S.emails=S.emails||{};S.emTab='notif';S.emF=S.emF||{rev:'revisar',caixa:'todas',q:'',ano:'todos',meses:[]};
-const EM_CX_PADRAO=[{email:'pamela.silva@netturbo.com.br',nome:'Pamela',ativo:true,propria:true},{email:'tobias.carvalho@netturbo.com.br',nome:'Tobias',ativo:true},{email:'oem@netturbo.com.br',nome:'O&M',ativo:true}];
-S.emCfg=S.emCfg||null;const emCaixas=()=>(S.emCfg&&Array.isArray(S.emCfg.caixas)&&S.emCfg.caixas.length?S.emCfg.caixas:EM_CX_PADRAO);
+const EM_TERMOS_PAMELA='LIMPEZA DE CABOS, DJM, Reordenamento, RETIRADA DE CABOS, OCUPANTES';
+const EM_ALERTA_PADRAO='ofício, oficio, ocupantes, irregularidade';
+const EM_CX_PADRAO=[{email:'pamela.silva@netturbo.com.br',nome:'Pamela',ativo:true,propria:true,modo:'filtro',termos:EM_TERMOS_PAMELA},{email:'tobias.carvalho@netturbo.com.br',nome:'Tobias',ativo:true,modo:'todos',termos:''},{email:'oem@netturbo.com.br',nome:'O&M',ativo:true,modo:'todos',termos:''}];
+S.emCfg=S.emCfg||null;const emCaixas=()=>(S.emCfg&&Array.isArray(S.emCfg.caixas)&&S.emCfg.caixas.length?S.emCfg.caixas:EM_CX_PADRAO).map(c=>({...c,modo:c.modo||(c.propria?'filtro':'todos'),termos:c.termos!=null?c.termos:(c.propria?EM_TERMOS_PAMELA:'')}));
+const emSplit=t=>String(t||'').split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+const emAlertaTxt=()=>S.emCfg&&S.emCfg.alertaTermos!=null?S.emCfg.alertaTermos:EM_ALERTA_PADRAO;
+/* Alerta de resposta: ofício / notificação de regularização (a ocupantes). Calculado na hora, então vale também para o que já foi carregado. */
+function emAlerta(e){if(!e||e.tipo===EM_CANC)return false;if(e.precisaResposta===false)return false;if(e.precisaResposta===true||e.tipo==='IRREGULARIDADE')return true;
+  const t=norm([e.assunto,e.numero].join(' '));return emSplit(emAlertaTxt()).some(w=>t.includes(norm(w)));}
+const emPendResp=e=>emAlerta(e)&&!e.respondidoEm;
 const EM_CANC='CANCELAMENTO';
 const emNum=v=>String(v||'').replace(/\D/g,'');
 const emAll=()=>Object.values(S.emails);
 function emRevKey(e){if(e.tipo===EM_CANC)return 'canc';if(e.revisao==='confirmada')return e.redeFinal?'com':'sem';if(e.revisao==='auto')return 'com';return 'revisar';}
 function emCancelados(){const c=new Set();emAll().forEach(e=>{if(e.tipo===EM_CANC&&emNum(e.numero))c.add(emNum(e.numero));});return c;}
-function emBadge(){const n=emAll().filter(e=>emRevKey(e)==='revisar').length;const b=$('#em-badge');if(b)b.textContent=n?fmtN(n):'';}
+function emBadge(){const n=emAll().filter(e=>emRevKey(e)==='revisar').length;const b=$('#em-badge');if(b)b.textContent=n?fmtN(n):'';const a=emAll().filter(emPendResp).length;const ab=$('#em-alert');if(ab)ab.textContent=a?'⚠ '+fmtN(a):'';}
 function emRedeTxt(e){if(e.tipo===EM_CANC)return '<span class="pill st-bad">cancelamento</span>';
   if(e.revisao==='confirmada')return e.redeFinal?'<span class="pill st-good">com rede · confirmado</span>':'<span class="pill st-mute">sem rede · confirmado</span>';
   if(e.rede===true)return '<span class="pill st-good">tem rede</span>';
   if(e.rede===false)return '<span class="pill st-bad">sem rede</span>';
   return '<span class="pill st-warn">incerto</span>';}
 function emFiltered(){const f=S.emF;const q=norm(f.q||'');
-  return emAll().filter(e=>{const k=emRevKey(e);if(!emNoPeriodo(e))return false;if(f.rev!=='todos'&&k!==f.rev)return false;if(f.caixa!=='todas'&&!(e.caixa||'').includes(f.caixa))return false;
+  return emAll().filter(e=>{const k=emRevKey(e);if(!emNoPeriodo(e))return false;if(f.rev==='resp'){if(!emAlerta(e))return false;}else if(f.rev!=='todos'&&k!==f.rev)return false;if(f.caixa!=='todas'&&!(e.caixa||'').includes(f.caixa))return false;
     if(q&&!norm([e.numero,e.cidade,e.endereco,e.assunto].join(' ')).includes(q))return false;return true;})
    .sort((a,b)=>(b.recebido||'').localeCompare(a.recebido||''));}
 function renderEmails(){emBadge();const box=$('#email-box');if(!box||S.emTab!=='email')return;const ALL=emAll();const all=ALL.filter(emNoPeriodo);const ro=canWrite===false?'disabled':'';
   const cnt=k=>all.filter(e=>emRevKey(e)===k).length;const canc=emCancelados();
   const f=S.emF;const list=emFiltered();
-  const segs=[['revisar','A revisar'],['com','Com rede'],['sem','Sem rede'],['canc','Cancelamentos'],['todos','Todos']];
+  const segs=[['resp','⚠ Precisa resposta'],['revisar','A revisar'],['com','Com rede'],['sem','Sem rede'],['canc','Cancelamentos'],['todos','Todos']];
   const fmtRec=v=>v?new Date(v).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'';
   const rows=list.slice(0,1500).map(e=>{const k=emRevKey(e);const isC=e.tipo!==EM_CANC&&canc.has(emNum(e.numero));const g=e.lat!=null;
-    const acts=k==='revisar'?`<div class="em-acts"><button class="btn small" data-em="com" ${ro}>Confirmar com rede</button><button class="btn small" data-em="sem" ${ro}>Confirmar sem rede</button>${g?'<button class="btn small" data-em="map">Mapa</button>':''}</div>`
-      :`<div class="em-acts">${e.notifId&&S.notif[e.notifId]?'<button class="btn small" data-em="open">Abrir notificação</button>':''}${g?'<button class="btn small" data-em="map">Mapa</button>':''}${k!=='canc'&&e.revisao==='confirmada'?`<button class="btn small" data-em="undo" ${ro}>Revisar de novo</button>`:''}</div>`;
-    return `<tr data-id="${esc(e.id)}" class="${isC||k==='canc'&&e.cancelaAchou?'em-canc':''}"><td>${esc(fmtRec(e.recebido))}</td><td>${esc(e.caixa||'')}</td><td class="mono">${esc(e.numero||'')}</td>
-      <td>${e.tipo===EM_CANC?'Cancelamento de aviso':esc(tipoOf(e.tipo).label)}</td><td>${esc(e.cidade||'')}</td><td class="wrap">${esc(e.endereco||'')}${g?`<div class="hint mono">${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}</div>`:''}</td>
+    const al=emAlerta(e);const rb=al?(e.respondidoEm?`<button class="btn small" data-em="unresp" ${ro}>Desfazer respondida</button>`:`<button class="btn small primary" data-em="resp" ${ro}>Marcar respondida</button>`):'';
+    const acts=k==='revisar'?`<div class="em-acts">${rb}<button class="btn small" data-em="com" ${ro}>Confirmar com rede</button><button class="btn small" data-em="sem" ${ro}>Confirmar sem rede</button>${g?'<button class="btn small" data-em="map">Mapa</button>':''}</div>`
+      :`<div class="em-acts">${rb}${e.notifId&&S.notif[e.notifId]?'<button class="btn small" data-em="open">Abrir notificação</button>':''}${g?'<button class="btn small" data-em="map">Mapa</button>':''}${k!=='canc'&&e.revisao==='confirmada'?`<button class="btn small" data-em="undo" ${ro}>Revisar de novo</button>`:''}</div>`;
+    return `<tr data-id="${esc(e.id)}" class="${isC||k==='canc'&&e.cancelaAchou?'em-canc':''}${al&&!e.respondidoEm?' em-resp':''}"><td>${esc(fmtRec(e.recebido))}</td><td>${esc(e.caixa||'')}</td><td class="mono">${esc(e.numero||'')}</td>
+      <td>${e.tipo===EM_CANC?'Cancelamento de aviso':esc(tipoOf(e.tipo).label)}${al?(e.respondidoEm?`<div><span class="pill st-good">respondida ${esc(new Date(e.respondidoEm).toLocaleDateString('pt-BR'))}</span></div>`:'<div><span class="pill st-bad">⚠ precisa resposta</span></div>'):''}</td><td>${esc(e.cidade||'')}</td><td class="wrap">${esc(e.endereco||'')}${g?`<div class="hint mono">${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}</div>`:''}</td>
       <td>${fmtData(e.data)}${e.hora?' '+esc(e.hora):''}</td><td>${emRedeTxt(e)}${isC?' <span class="pill st-bad">cancelada</span>':''}<div class="hint" style="white-space:normal;max-width:220px">${esc(e.redeComo||'')}</div></td>
       <td>${acts}</td><td>${e.link?`<a href="${esc(e.link)}" target="_blank" rel="noopener">PDF</a>`:''}</td></tr>`;}).join('');
   box.innerHTML=`<div class="card"><div class="row"><div class="grow"><h3 style="margin:0">Recebimento de e-mail</h3><p class="hint" style="margin:4px 0 0">Notificações lidas dos e-mails (sua caixa, Tobias e O&amp;M). A rede é conferida no mapa: as que têm rede já viram notificação; as sem rede ou incertas ficam aqui para a segunda conferência. Linhas em vermelho = notificação cancelada pela concessionária.</p></div></div>
      <div class="em-kpis" style="margin-top:10px"><div><b>${fmtN(all.filter(e=>e.tipo!==EM_CANC).length)}</b><span>notificações recebidas · ${esc(emPeriodoTxt())}</span></div><div><b>${fmtN(cnt('com'))}</b><span>com rede</span></div><div><b style="color:var(--critical)">${fmtN(cnt('revisar'))}</b><span>a revisar</span></div><div><b>${fmtN(cnt('sem'))}</b><span>sem rede (confirmado)</span></div><div><b>${fmtN(cnt('canc'))}</b><span>avisos de cancelamento</span></div></div>${emPeriodoUI(ALL)}</div>
-   ${emMesCard(ALL)}
-   <div class="card"><div class="row" style="gap:10px;margin-bottom:10px"><div class="seg" id="em-seg">${segs.map(([k,l])=>`<button type="button" data-k="${k}" aria-pressed="${f.rev===k}">${l} (${fmtN(k==='todos'?all.length:cnt(k))})</button>`).join('')}</div>
+   ${emAlertCard(ALL)}${emMesCard(ALL)}
+   <div class="card"><div class="row" style="gap:10px;margin-bottom:10px"><div class="seg" id="em-seg">${segs.map(([k,l])=>`<button type="button" data-k="${k}" aria-pressed="${f.rev===k}">${l} (${fmtN(k==='todos'?all.length:k==='resp'?all.filter(emPendResp).length:cnt(k))})</button>`).join('')}</div>
      <label class="fld" style="min-width:150px"><span>Caixa</span><select id="em-cx">${['todas',...new Set(emCaixas().map(c=>c.nome).concat(ALL.flatMap(e=>(e.caixa||'').split(' / ')).filter(Boolean)))].map(c=>`<option value="${esc(c)}" ${f.caixa===c?'selected':''}>${c==='todas'?'Todas':esc(c)}</option>`).join('')}</select></label>
      <label class="fld grow" style="min-width:200px"><span>Buscar</span><input type="search" id="em-q" value="${esc(f.q||'')}" placeholder="nº, cidade ou rua"></label>
      <button class="btn" id="em-csv" type="button">Excel/CSV</button></div>
@@ -4000,6 +4013,7 @@ function renderEmails(){emBadge();const box=$('#email-box');if(!box||S.emTab!=='
   box.querySelectorAll('#em-seg button').forEach(b=>b.onclick=()=>{S.emF.rev=b.dataset.k;renderEmails();});
   $('#em-cx').onchange=e=>{S.emF.caixa=e.target.value;renderEmails();};emPeriodoWire(box);
   emCfgWire(box);
+  box.querySelectorAll('[data-emr]').forEach(b=>b.onclick=()=>{const [id,a]=b.dataset.emr.split('|');if(a==='ver'){S.emF.rev='resp';S.emF.ano='todos';S.emF.meses=[];renderEmails();return;}emAction(S.emails[id],a);});
   const qi=$('#em-q');qi.oninput=()=>{clearTimeout(qi._t);qi._t=setTimeout(()=>{S.emF.q=qi.value;renderEmails();const n=$('#em-q');n.focus();n.setSelectionRange(n.value.length,n.value.length);},300);};
   $('#em-csv').onclick=()=>offer('recebimento_email_'+hoje()+'.csv',csvOf([['Recebido','Caixa','Nº','Tipo','Cidade','Endereço','Latitude','Longitude','Data atividade','Hora','Rede','Situação','Link PDF','Assunto'],
     ...list.map(e=>[fmtRec(e.recebido),e.caixa,e.numero,e.tipo===EM_CANC?'Cancelamento de aviso':tipoOf(e.tipo).label,e.cidade,e.endereco,e.lat??'',e.lng??'',fmtData(e.data),e.hora||'',({com:'com rede',sem:'sem rede',revisar:'a revisar',canc:'cancelamento'})[emRevKey(e)],canc.has(emNum(e.numero))?'cancelada':'',e.link||'',e.assunto||''])]));
@@ -4019,21 +4033,35 @@ function emPeriodoWire(box){const a=box.querySelector('#em-ano');if(!a)return;a.
   dd.querySelectorAll('[data-mm]').forEach(c=>c.onchange=()=>{const m=c.dataset.mm;const l=new Set(S.emF.meses||[]);c.checked?l.add(m):l.delete(m);S.emF.meses=[...l];renderEmails();});
   dd.querySelectorAll('[data-mq]').forEach(b=>b.onclick=()=>{const n=+b.dataset.mq;if(!n){S.emF.meses=[];}else{const ms=[...new Set(emAll().map(e=>e.mes).filter(m=>/^\d{4}-\d{2}$/.test(m)))].sort().reverse();S.emF.meses=ms.slice(0,n);S.emF.ano='todos';}renderEmails();});
   document.addEventListener('click',ev=>{const d=document.querySelector('#em-mdd');if(d&&d.open&&!d.contains(ev.target)){d.open=false;S.emMddOpen=false;}},{once:true,capture:true});}
+function emAlertCard(ALL){const pend=ALL.filter(emPendResp).sort((a,b)=>(a.recebido||'').localeCompare(b.recebido||''));if(!pend.length)return '';const ro=canWrite===false?'disabled':'';
+  const fmtRec=v=>v?new Date(v).toLocaleDateString('pt-BR'):'';
+  return `<div class="card em-alertcard"><div class="row"><div class="grow"><h3 style="margin:0;color:var(--critical)">⚠ ${fmtN(pend.length)} e-mail(s) precisam de resposta</h3>
+   <p class="hint" style="margin:4px 0 0">Ofícios e notificações de regularização (ocupantes/irregularidade). Responda pelo Outlook e depois clique em "Marcar respondida". Esses e-mails ficam como não lidos no Outlook até serem respondidos.</p></div>
+   <button class="btn small" type="button" data-emr="|ver">Ver todas</button></div>
+   <ul style="margin:8px 0 0;padding-left:18px">${pend.slice(0,8).map(e=>`<li><b>${esc(e.numero||e.assunto||'')}</b> · ${esc(e.cidade||'')} · recebido ${esc(fmtRec(e.recebido))} · caixa ${esc(e.caixa||'')}${e.prazo?' · prazo '+esc(e.prazo):''} <button class="btn small" type="button" data-emr="${esc(e.id)}|resp" ${ro}>Marcar respondida</button></li>`).join('')}</ul>
+   ${pend.length>8?`<p class="hint" style="margin:6px 0 0">+ ${fmtN(pend.length-8)} — clique em "Ver todas".</p>`:''}</div>`;}
 function emMesCard(ALL){
   return `<details class="card" id="em-cfg" ${S.emCfgOpen?'open':''}><summary style="cursor:pointer"><b>Caixas de e-mail lidas pelo agente</b> <span class="hint">· ${emCaixas().filter(c=>c.ativo!==false).length} ativa(s)${S.emCfg&&S.emCfg.alteradoEm?' · alterado em '+new Date(S.emCfg.alteradoEm).toLocaleDateString('pt-BR'):''}</span></summary>
-   <p class="hint" style="margin:8px 0">O agente de rotina (seg/qua/sex) lê os e-mails não lidos de notificação destas caixas. Para incluir uma caixa nova, ela precisa estar compartilhada com a conta que o agente usa (pamela.silva@netturbo.com.br) com permissão de leitura no Outlook.</p>
-   <table><thead><tr><th>E-mail</th><th>Nome curto (aparece na coluna Caixa)</th><th>Ativa</th><th></th></tr></thead><tbody>
-   ${emCaixas().map((c,i)=>`<tr data-i="${i}"><td><input data-c="email" type="email" value="${esc(c.email)}" style="width:260px"></td><td><input data-c="nome" value="${esc(c.nome)}" style="width:140px"></td><td><input data-c="ativo" type="checkbox" ${c.ativo!==false?'checked':''}></td><td><button class="btn small" data-cdel type="button">Remover</button></td></tr>`).join('')}
-   </tbody></table><div class="row" style="margin-top:8px"><button class="btn small" id="em-cadd" type="button">+ Adicionar caixa</button><span class="grow"></span><span class="hint" id="em-cmsg"></span><button class="btn primary small" id="em-csave" type="button">Salvar caixas</button></div></details>`;}
+   <p class="hint" style="margin:8px 0">O agente de rotina (seg/qua/sex) lê só os e-mails <b>não lidos</b> destas caixas. Em cada caixa você escolhe o que ler: <b>todos os e-mails</b> (caixa que só recebe notificações) ou <b>só os que têm os termos</b> no assunto/texto (caixa pessoal: o resto nem é aberto). Para incluir uma caixa nova, ela precisa estar compartilhada com a conta que o agente usa (pamela.silva@netturbo.com.br) com permissão de leitura no Outlook.</p>
+   <div class="tablewrap"><table><thead><tr><th>E-mail</th><th>Nome curto</th><th>O que ler</th><th>Termos (separados por vírgula)</th><th>Ativa</th><th></th></tr></thead><tbody>
+   ${emCaixas().map((c,i)=>`<tr data-i="${i}"><td><input data-c="email" type="email" value="${esc(c.email)}" style="width:240px"></td><td><input data-c="nome" value="${esc(c.nome)}" style="width:110px"></td>
+     <td><select data-c="modo"><option value="todos" ${c.modo==='todos'?'selected':''}>Todos os e-mails (só recebe notificações)</option><option value="filtro" ${c.modo==='filtro'?'selected':''}>Só e-mails com os termos</option></select></td>
+     <td><input data-c="termos" value="${esc(c.termos||'')}" style="width:300px" placeholder="${c.modo==='filtro'?'ex.: LIMPEZA DE CABOS, DJM':'não usado (lê todos)'}" ${c.modo==='filtro'?'':'disabled'}></td>
+     <td><input data-c="ativo" type="checkbox" ${c.ativo!==false?'checked':''}></td><td><button class="btn small" data-cdel type="button">Remover</button></td></tr>`).join('')}
+   </tbody></table></div>
+   <label class="fld" style="margin-top:10px;max-width:640px"><span>Termos que geram alerta "⚠ precisa resposta" no assunto do e-mail (além do tipo Irregularidade / notificação a ocupantes)</span><input id="em-alt" value="${esc(emAlertaTxt())}" placeholder="ex.: ofício, ocupantes"></label><div class="row" style="margin-top:8px"><button class="btn small" id="em-cadd" type="button">+ Adicionar caixa</button><span class="grow"></span><span class="hint" id="em-cmsg"></span><button class="btn primary small" id="em-csave" type="button">Salvar configuração</button></div></details>`;}
 function emCfgWire(box){const d=box.querySelector('#em-cfg');if(!d)return;d.ontoggle=()=>{S.emCfgOpen=d.open;};
-  const read=()=>[...d.querySelectorAll('tbody tr[data-i]')].map(tr=>({email:tr.querySelector('[data-c=email]').value.trim().toLowerCase(),nome:tr.querySelector('[data-c=nome]').value.trim(),ativo:tr.querySelector('[data-c=ativo]').checked})).filter(c=>c.email);
-  d.querySelector('#em-cadd').onclick=()=>{S.emCfg={...(S.emCfg||{}),caixas:[...read(),{email:'',nome:'',ativo:true}]};renderEmails();};
+  const read=()=>[...d.querySelectorAll('tbody tr[data-i]')].map(tr=>({email:tr.querySelector('[data-c=email]').value.trim().toLowerCase(),nome:tr.querySelector('[data-c=nome]').value.trim(),modo:tr.querySelector('[data-c=modo]').value,termos:tr.querySelector('[data-c=termos]').value.trim(),ativo:tr.querySelector('[data-c=ativo]').checked})).filter(c=>c.email||c.nome);
+  d.querySelectorAll('[data-c=modo]').forEach(s=>s.onchange=()=>{const i=s.closest('tr').querySelector('[data-c=termos]');i.disabled=s.value!=='filtro';i.placeholder=s.value==='filtro'?'ex.: LIMPEZA DE CABOS, DJM':'não usado (lê todos)';});
+  d.querySelector('#em-cadd').onclick=()=>{S.emCfg={...(S.emCfg||{}),caixas:[...read(),{email:'',nome:'',ativo:true,modo:'todos',termos:''}]};renderEmails();};
   d.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>{const i=+b.closest('tr').dataset.i;const l=read();l.splice(i,1);S.emCfg={...(S.emCfg||{}),caixas:l};renderEmails();});
   d.querySelector('#em-csave').onclick=async()=>{if(noEdit())return;const l=read();const bad=l.find(c=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email)||!c.nome);
     if(bad){d.querySelector('#em-cmsg').textContent='Preencha e-mail válido e nome curto em todas as linhas.';return;}
+    const semT=l.find(c=>c.modo==='filtro'&&!emSplit(c.termos).length);if(semT){d.querySelector('#em-cmsg').textContent='A caixa '+semT.nome+' está em "só e-mails com os termos": informe pelo menos um termo.';return;}
     const me=(S.emCfg&&S.emCfg.caixas||EM_CX_PADRAO).find(c=>c.propria);l.forEach(c=>{if(me&&c.email===me.email)c.propria=true;});
-    try{await db.doc('config/emails').set({caixas:l,...stamp()});toast('Caixas salvas: o agente usa esta lista a partir da próxima execução');}catch(e){handleWriteErr(e);}};}
-window.GOM_CAIXAS=()=>emCaixas().filter(c=>c.ativo!==false).map(c=>({email:c.email,nome:c.nome,propria:!!c.propria}));
+    try{await db.doc('config/emails').set({caixas:l,alertaTermos:(d.querySelector('#em-alt')||{}).value??emAlertaTxt(),...stamp()});toast('Configuração salva: o agente usa esta lista a partir da próxima execução');}catch(e){handleWriteErr(e);}};}
+window.GOM_CAIXAS=()=>emCaixas().filter(c=>c.ativo!==false).map(c=>({email:c.email,nome:c.nome,propria:!!c.propria,modo:c.modo,termos:c.modo==='filtro'?emSplit(c.termos):[]}));
+window.GOM_ALERTA=()=>emSplit(emAlertaTxt());
 async function emWrite(e,patch){const ref=db.doc('emails/'+e.mes);const s=await ref.get();const body={[e.id]:{...patch}};
   if(s.exists)await ref.update({itens:body});else await ref.set({mes:e.mes,itens:body});}
 function emNotifBody(e,rede,como){const canc=emCancelados().has(emNum(e.numero));
@@ -4052,11 +4080,13 @@ async function emAction(e,a){if(!e)return;
   if(noEdit())return;
   try{if(a==='com'||a==='sem'){const rede=a==='com';const id=await emCriaNotif(e,rede,'confirmado manualmente no Recebimento de e-mail');
       await emWrite(e,{revisao:'confirmada',redeFinal:rede,notifId:id,...stamp()});toast(rede?'Confirmado com rede: virou notificação planejada':'Confirmado sem rede: registrado no total recebido');}
-    else if(a==='undo'){await emWrite(e,{revisao:'pendente',...stamp()});toast('Voltou para "A revisar"');}}
+    else if(a==='undo'){await emWrite(e,{revisao:'pendente',...stamp()});toast('Voltou para "A revisar"');}
+    else if(a==='resp'){await emWrite(e,{respondidoEm:new Date().toISOString(),...(myId?{respondidoPor:myId}:{}),...stamp()});toast('Marcada como respondida');}
+    else if(a==='unresp'){await emWrite(e,{respondidoEm:'',...stamp()});toast('Voltou para "precisa resposta"');}}
   catch(err){handleWriteErr(err);}}
 /* Entrada do agente: lista de itens {key, numero, recebido(ISO), caixa, tipo, cidade, endereco, lat, lng, data(AAAA-MM-DD), hora, prazo, link, assunto, obs, fonteCoord, cancelamento} */
 async function ingestEmails(list,prog){if(!db)throw new Error('banco indisponível');prog=prog||(()=>{});
-  const out={novos:0,jaExistiam:0,comRede:0,aRevisar:0,cancelamentos:0,canceladas:0};const per={};const exist=S.emails;
+  const out={novos:0,jaExistiam:0,comRede:0,aRevisar:0,cancelamentos:0,canceladas:0,precisamResposta:0};const per={};const exist=S.emails;
   for(const raw of list){const id=String(raw.key||'').replace(/[^0-9A-Za-z_-]/g,'').slice(0,60);if(!id){continue;}if(exist[id]){out.jaExistiam++;continue;}
     const e={...raw,id,mes:(raw.recebido||new Date().toISOString()).slice(0,7),tipo:raw.cancelamento?EM_CANC:(TIPO[raw.tipo]?raw.tipo:tipoNorm(raw.tipo))};delete e.key;delete e.cancelamento;
     if(e.tipo===EM_CANC){e.revisao='cancelamento';const alvo=notifPorNumero(e.numero);e.cancelaAchou=!!alvo;out.cancelamentos++;
@@ -4064,7 +4094,7 @@ async function ingestEmails(list,prog){if(!db)throw new Error('banco indisponív
         await writeItem(alvo.mes,alvo.id,{status:'CANCELADO',hist,obs:((alvo.obs||'')+' [Cancelado pela concessionária: aviso recebido em '+fmtData((e.recebido||'').slice(0,10))+']').trim(),...stamp()});out.canceladas++;}}
     else{const chk=checaRede({...e,rua:e.endereco});e.rede=chk.rede;e.redeComo=chk.como;if(e.lat==null&&chk.lat!=null){e.lat=chk.lat;e.lng=chk.lng;e.fonteCoord='rua cadastrada na rota';}
       if(chk.rede===true){e.revisao='auto';e.notifId=await emCriaNotif(e,true,chk.como);out.comRede++;}else{e.revisao='pendente';out.aRevisar++;}}
-    e.criadoEm=new Date().toISOString();(per[e.mes]=per[e.mes]||{})[id]=Object.fromEntries(Object.entries(e).filter(([k,v])=>k!=='id'&&k!=='mes'&&v!==undefined));out.novos++;
+    if(emAlerta(e))out.precisamResposta++;e.criadoEm=new Date().toISOString();(per[e.mes]=per[e.mes]||{})[id]=Object.fromEntries(Object.entries(e).filter(([k,v])=>k!=='id'&&k!=='mes'&&v!==undefined));out.novos++;
     if(out.novos%25===0)prog(`Processados ${out.novos}…`);}
   for(const [mes,itens] of Object.entries(per)){const ref=db.doc('emails/'+mes);const s=await ref.get();if(s.exists)await ref.update({itens});else await ref.set({mes,itens});}
   return out;}
