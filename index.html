@@ -3126,18 +3126,14 @@ async function abrirAnexo(a){try{const r=await fetch(a.url);let blob;const ct=r.
 function tercPdf(){if(!window.jspdf){toast('Gerador de PDF indisponível nesta visualização');return;}const L=tercList().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt'));if(!L.length){toast('Nenhum terceiro cadastrado');return;}
   const {jsPDF}=window.jspdf;const d=new jsPDF({unit:'pt',format:'a4',orientation:'landscape'});const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight();
   const nT=L.reduce((s,t)=>s+(t.tecnicos||[]).length,0);const dt=new Date().toLocaleDateString('pt-BR');
-  let y=42;d.setFont('helvetica','bold');d.setFontSize(18);d.setTextColor(95,138,20);d.text('Net',40,y);d.setTextColor(13,26,20);d.text('Turbo',40+d.getTextWidth('Net '),y);
-  d.setFontSize(9);d.setFont('helvetica','normal');d.setTextColor(110);d.text('Gestão O&M · Financeiro',W-40,y,{align:'right'});y+=28;
+  let y=46;
   d.setTextColor(20);d.setFont('helvetica','bold');d.setFontSize(14);d.text('Terceiros e técnicos cadastrados',40,y);y+=16;
   d.setFont('helvetica','normal');d.setFontSize(9.5);d.setTextColor(90);d.text(`${L.length} terceiro(s) · ${nT} técnico(s) · gerado em ${dt}`,40,y);y+=12;
   const head={fillColor:[31,58,43],textColor:255,fontStyle:'bold'};const foot=()=>{d.setFont('helvetica','normal');d.setFontSize(8);d.setTextColor(130);d.text(`Página ${d.internal.getCurrentPageInfo().pageNumber} de {total}`,W-40,H-20,{align:'right'});d.text('Documento interno · contém dados cadastrais (CNPJ, telefone, e-mail)',40,H-20);};
   d.autoTable({startY:y+6,margin:{left:40,right:40,bottom:34},styles:{font:'helvetica',fontSize:8,cellPadding:4,overflow:'linebreak',valign:'top'},headStyles:head,alternateRowStyles:{fillColor:[241,246,236]},
-    ...(()=>{const C=[['Terceiro',120,t=>t.nome||''],['Código(s) SAP',62,t=>codsDe(t).join('\n')],['CNPJ',90,t=>t.cnpj||''],['Tipo de serviço',86,t=>String(t.tipo||'').replace(/\//g,' / ')],['Responsável / obs.',82,t=>t.obs||''],['Telefone',80,t=>t.telefone||''],['E-mail',124,t=>String(t.email||'').replace(/\s*\/\s*/g,'\n')],['Conta padrão',90,t=>{const a=CONTA[t.conta];return a?a.c+' · '+a.n:(t.conta||'');}],['Técnicos',46,t=>(t.tecnicos||[]).length?String(t.tecnicos.length):''],['Também aparece como',0,t=>(t.apelidos||[]).filter(x=>!norm(x).startsWith(norm(t.nome))).join('\n')]].filter(([,,f],i)=>i===0||L.some(t=>f(t)));
+    ...(()=>{const C=[['Terceiro',120,t=>t.nome||''],['Código(s) SAP',62,t=>codsDe(t).join('\n')],['CNPJ',90,t=>t.cnpj||''],['Tipo de serviço',86,t=>String(t.tipo||'').replace(/\//g,' / ')],['Responsável / obs.',82,t=>t.obs||''],['Telefone',80,t=>t.telefone||''],['E-mail',0,t=>String(t.email||'').replace(/\s*\/\s*/g,'\n')],['Conta padrão',90,t=>{const a=CONTA[t.conta];return a?a.c+' · '+a.n:(t.conta||'');}],['Técnicos',46,t=>(t.tecnicos||[]).length?String(t.tecnicos.length):'']].filter(([,,f],i)=>i===0||L.some(t=>f(t)));
       const cs={};C.forEach(([h,w],i)=>{cs[i]=w?{cellWidth:w}:{cellWidth:'auto'};});cs[0].fontStyle='bold';const ti=C.findIndex(c=>c[0]==='Técnicos');if(ti>=0)cs[ti].halign='center';
       return {head:[C.map(c=>c[0])],body:L.map(t=>C.map(c=>c[2](t))),columnStyles:cs};})(),didDrawPage:foot});
-  const T=[];L.forEach(t=>(t.tecnicos||[]).forEach(x=>T.push([t.nome||'',x.nome||'',x.cnpj||''])));
-  if(T.length){let y2=(d.lastAutoTable&&d.lastAutoTable.finalY||0)+34;if(y2+60+T.length*16>H-40&&y2>H*0.6){d.addPage();y2=46;}d.setFont('helvetica','bold');d.setFontSize(13);d.setTextColor(20);d.text('Técnicos por terceiro',40,y2);
-    d.autoTable({startY:y2+12,margin:{left:40,right:40,bottom:34},styles:{font:'helvetica',fontSize:8.5,cellPadding:4},headStyles:head,alternateRowStyles:{fillColor:[241,246,236]},head:[['Terceiro','Técnico','CNPJ do técnico']],body:T,columnStyles:{0:{cellWidth:240,fontStyle:'bold'},1:{cellWidth:300},2:{cellWidth:'auto'}},didDrawPage:foot});}
   if(typeof d.putTotalPages==='function')d.putTotalPages('{total}');
   salvar(`terceiros_e_tecnicos_${hoje()}.pdf`,d.output('blob'),'application/pdf');}
 function finTerc(box){const ro=canWrite===false?'disabled':'';const L=tercList();const f=F.tform;
