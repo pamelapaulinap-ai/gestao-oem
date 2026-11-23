@@ -1028,6 +1028,7 @@ details summary{cursor:pointer;color:var(--fg-2);font-size:13.5px}
 .impmap{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 12px}.imp{border-color:var(--focus)}
 .at-box{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg2,transparent)}.at-box>summary{cursor:pointer;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.at-add{display:grid;grid-template-columns:110px 130px 1fr 110px 1fr 120px 100px auto;gap:6px;margin-top:8px}.at-add input{min-width:0}.at-dup td{background:color-mix(in srgb,var(--warn) 10%,transparent)}.at-paste textarea{width:100%;font:inherit;font-size:12.5px}@media(max-width:720px){.at-add{grid-template-columns:1fr 1fr}}
 .t-inat{opacity:.72}
+.cmp-at th{white-space:normal;vertical-align:bottom;max-width:150px}.cmp-at th.sum,.cmp-at td.sum{background:color-mix(in srgb,var(--focus) 12%,transparent);font-weight:700}
 </style>
 </head>
 <body>
@@ -3426,9 +3427,10 @@ function histWire(){const fi=$('#hist-file');if(fi)fi.onchange=async()=>{const f
   document.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=async()=>{const a=b.dataset.hdel;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='confirmar remoção de '+a;setTimeout(()=>{b.dataset.ok='';b.textContent='remover';},4000);return;}if(noEdit())return;
     const p={};Object.keys((F.cfg.hist||{}).meses||{}).filter(m=>m.startsWith(a)).forEach(m=>p[m]=null);try{await finWrite('hist',{meses:p,terc:p});toast('Histórico de '+a+' removido');}catch(e){handleWriteErr(e);}});}
 /* ---------- comparativo entre anos ---------- */
+const CMP_ATALHOS=[['Manutenção (rede + cliente)',['c:0008','c:0006'],1],['CAPEX × OPEX',['capex','opex'],0],['Total × budget',['all','bud'],0]];
 const CMP_MET=()=>[['all','Total executado'],['capex','CAPEX'],['opex','OPEX'],['bud','Budget total'],...CONTAS.map(a=>['c:'+a.c,a.c+' · '+a.n])];
 const CMP_MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-function cmpVal(ano,met,i){const m=ano+'-'+String(i+1).padStart(2,'0');if(!finMesesDados().includes(m))return null;if(met.startsWith('c:')){const v=execConta(met.slice(2),m).total;return v||null;}const t=finTotais(m);if(met==='bud')return t.all.b>0?t.all.b:null;return t[met].e||null;}
+function cmpVal(ano,met,i){if(met.startsWith('sum:')){const vs=met.slice(4).split('|').map(k=>cmpVal(ano,k,i));return vs.every(v=>v==null)?null:vs.reduce((s,v)=>s+(v||0),0);}const m=ano+'-'+String(i+1).padStart(2,'0');if(!finMesesDados().includes(m))return null;if(met.startsWith('c:')){const v=execConta(met.slice(2),m).total;return v||null;}const t=finTotais(m);if(met==='bud')return t.all.b>0?t.all.b:null;return t[met].e||null;}
 const cmpAnosSel=()=>[...F.cmpA].sort();
 function cmpCor(a){const an=cmpAnosSel();const k=an.length-1-an.indexOf(a);return ['--focus','--fg-3','--s1','--s4','--s6'][k]||'--s5';}
 const cmpK=v=>v==null?'—':Math.abs(v)>=1e6?'R$ '+(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+' mi':'R$ '+(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil';
@@ -3442,26 +3444,60 @@ function cmpHtml(){const anos=finAnos().filter(a=>finMesesDados().some(m=>m.star
   if(!F.cmpA){F.cmpA=new Set(anos.slice(0,2));F.cmpM=new Set(['all']);F.cmpKnown=anos.join();}
   if(F.cmpKnown!==anos.join()){anos.filter(a=>!F.cmpKnown.split(',').includes(a)).slice(0,2).forEach(a=>F.cmpA.add(a));F.cmpKnown=anos.join();}
   F.cmpA=new Set([...F.cmpA].filter(a=>anos.includes(a)));if(!F.cmpA.size)F.cmpA.add(anos[0]);
-  const mets=CMP_MET().filter(([k])=>F.cmpM.has(k));
+  const metsSel=CMP_MET().filter(([k])=>F.cmpM.has(k));const mets=metsSel;
   const drop=(id,txt,opts,set)=>`<details class="mdrop" ${F['cmpOpen'+id]?'open':''} data-cmpd="${id}"><summary><span class="hint">${id==='A'?'Anos':'Comparar'}:</span> <b>${esc(txt)}</b> <span aria-hidden="true">▾</span></summary><div class="mdrop-p">${opts.map(([k,l])=>`<label><input type="checkbox" data-cmp${id.toLowerCase()}="${esc(k)}" ${set.has(k)?'checked':''}> ${esc(l)}</label>`).join('')}</div></details>`;
   const metTxt=mets.length>2?mets.length+' itens':mets.map(x=>x[1]).join(', ');const an=cmpAnosSel();
   const dif=an.length>=2;const ya=an[an.length-1],yb=an[an.length-2];
   const dcell=(x,y)=>{if(x==null||y==null)return '<td class="r mono">—</td><td class="r mono">—</td>';const d=x-y,p=y?d/y*100:null;const cl=d>0?'var(--critical)':d<0?'var(--good)':'inherit';return `<td class="r mono" style="color:${cl}">${d>0?'+ ':d<0?'− ':''}${brl0(Math.abs(d))}</td><td class="r mono" style="color:${cl}">${p==null?'—':(p>0?'+':'')+p.toFixed(1).replace('.',',')+'%'}</td>`;};
-  const tabela=()=>{const DD=Object.fromEntries(mets.map(([k])=>[k,cmpDados(k)]));const tot=(k,a,idx)=>idx.reduce((s,i)=>s+(DD[k][a][i]||0),0);
+  const tabela=()=>{const mets=cmpViewMets(metsSel);const DD=Object.fromEntries(mets.map(([k])=>[k,cmpDados(k)]));const tot=(k,a,idx)=>idx.reduce((s,i)=>s+(DD[k][a][i]||0),0);
     return `<details class="ov-ed" ${F.cmpTab?'open':''} data-cmptab><summary>Ver valores mês a mês</summary><div class="tablewrap" style="margin-top:8px"><table class="mini"><thead><tr><th>Mês</th>${mets.map(([,l])=>{const n=esc(l.replace(/^(\d{4}) · .*/,'$1'));return an.map(a=>`<th class="r">${n} ${a}</th>`).join('')+(dif?`<th class="r">Diferença ${ya} × ${yb}</th><th class="r">%</th>`:'');}).join('')}</tr></thead>
     <tbody>${CMP_MES.map((mn,i)=>`<tr><td>${mn}</td>${mets.map(([k])=>an.map(a=>`<td class="r mono">${DD[k][a][i]==null?'—':brl0(DD[k][a][i])}</td>`).join('')+(dif?dcell(DD[k][ya][i],DD[k][yb][i]):'')).join('')}</tr>`).join('')}</tbody>
     ${F.cmpAc?'':`<tfoot style="border-top:2px solid var(--line-2)"><tr><td><b>Total</b></td>${mets.map(([k])=>an.map(a=>`<td class="r mono"><b>${brl0(tot(k,a,CMP_MES.map((_,i)=>i)))}</b></td>`).join('')+(dif?(()=>{const idx=CMP_MES.map((_,i)=>i).filter(i=>DD[k][ya][i]!=null&&DD[k][yb][i]!=null);return idx.length?dcell(tot(k,ya,idx),tot(k,yb,idx)):'<td></td><td></td>';})():'')).join('')}</tr>${dif?`<tr><td colspan="${1+mets.length*(an.length+2)}" class="hint">A diferença do total considera só os meses que existem nos dois anos.</td></tr>`:''}</tfoot>`}</table></div></details>`;};
-  return `<div class="card" id="cmp-card"><div class="row" style="align-items:center;gap:8px"><h3 class="grow" style="margin:0">Comparativo entre anos</h3>
+  return `<div class="card" id="cmp-card"><div class="row" style="align-items:center;gap:8px"><h3 style="margin:0;flex:1 1 100%">Comparativo entre anos</h3>
      ${drop('A',an.join(', '),anos.map(a=>[a,a]),F.cmpA)}${drop('M',metTxt||'—',CMP_MET(),F.cmpM)}
-     <div class="seg">${[[0,'Mensal'],[1,'Acumulado']].map(([k,l])=>`<button data-cmpac="${k}" aria-pressed="${!!F.cmpAc===!!k}">${l}</button>`).join('')}</div></div>
-    ${mets.length?`<div class="cmp-grid ${mets.length>1?'two':''}">${mets.map(([k,l])=>{const D=cmpDados(k);return `<div class="cmp-p"><div class="cmp-t">${esc(l)}</div>${cmpResumo(k,D)}<div class="chart" data-cmpc="${esc(k)}"></div></div>`;}).join('')}</div>${tabela()}`:'<p class="hint">Escolha pelo menos um item para comparar.</p>'}</div>`;}
+     ${mets.length>1?`<div class="seg">${[[0,'Separado'],[1,'Somado']].map(([k,l])=>`<button data-cmpj="${k}" aria-pressed="${!!F.cmpJ===!!k}">${l}</button>`).join('')}</div>`:''}
+     <div class="seg">${[[0,'Mensal'],[1,'Acumulado']].map(([k,l])=>`<button data-cmpac="${k}" aria-pressed="${!!F.cmpAc===!!k}">${l}</button>`).join('')}</div><button class="btn small" id="cmp-xls" ${mets.length?'':'disabled'}>Baixar Excel</button></div>
+    <div class="row" style="gap:6px;margin-top:8px"><span class="hint">Atalhos:</span>${CMP_ATALHOS.map(([l,ks],i)=>`<button class="btn small${ks.length===mets.length&&ks.every(k=>F.cmpM.has(k))?' primary':''}" data-cmpat="${i}">${esc(l)}</button>`).join('')}</div>
+    ${mets.length?`<div class="cmp-grid ${cmpViewMets(mets).length>1?'two':''}">${cmpViewMets(mets).map(([k,l])=>{const D=cmpDados(k);return `<div class="cmp-p"><div class="cmp-t">${esc(l)}</div>${cmpResumo(k,D)}<div class="chart" data-cmpc="${esc(k)}"></div></div>`;}).join('')}</div>${cmpAnoTab(mets)}${tabela()}`:'<p class="hint">Escolha pelo menos um item para comparar.</p>'}</div>`;}
 function cmpWire(rer){const box=$('#cmp-card');if(!box)return;
   box.querySelectorAll('[data-cmpc]').forEach(el=>cmpChart(el,el.dataset.cmpc));
   box.querySelectorAll('[data-cmpd]').forEach(d=>d.ontoggle=()=>{F['cmpOpen'+d.dataset.cmpd]=d.open;});
   const t=box.querySelector('[data-cmptab]');if(t)t.ontoggle=()=>{F.cmpTab=t.open;};
   box.querySelectorAll('[data-cmpa]').forEach(c=>c.onchange=()=>{const k=c.dataset.cmpa;c.checked?F.cmpA.add(k):F.cmpA.delete(k);rer();});
   box.querySelectorAll('[data-cmpm]').forEach(c=>c.onchange=()=>{const k=c.dataset.cmpm;c.checked?F.cmpM.add(k):F.cmpM.delete(k);rer();});
-  box.querySelectorAll('[data-cmpac]').forEach(b=>b.onclick=()=>{F.cmpAc=b.dataset.cmpac==='1';rer();});}
+  box.querySelectorAll('[data-cmpac]').forEach(b=>b.onclick=()=>{F.cmpAc=b.dataset.cmpac==='1';rer();});
+  box.querySelectorAll('[data-cmpj]').forEach(b=>b.onclick=()=>{F.cmpJ=b.dataset.cmpj==='1';rer();});
+  box.querySelectorAll('[data-cmpat]').forEach(b=>b.onclick=()=>{const [,ks,j]=CMP_ATALHOS[+b.dataset.cmpat];F.cmpM=new Set(ks);F.cmpJ=!!j;rer();});
+  const xb=$('#cmp-xls');if(xb)xb.onclick=()=>{try{cmpExcel();}catch(e){console.error(e);toast('Não foi possível gerar o Excel');}};}
+function cmpViewMets(mets){return F.cmpJ&&mets.length>1?[['sum:'+mets.map(x=>x[0]).join('|'),'Soma: '+mets.map(x=>x[1]).join(' + ')]]:mets;}
+function cmpAnoDados(mets){const an=cmpAnosSel();const items=mets.length>1?[...mets,['sum:'+mets.map(x=>x[0]).join('|'),'Soma']]:mets;
+  const V={};items.forEach(([k])=>{V[k]={};an.forEach(a=>{V[k][a]=CMP_MES.map((_,i)=>cmpVal(a,k,i));});});
+  const comum=CMP_MES.map((_,i)=>i).filter(i=>an.every(a=>items.some(([k])=>V[k][a][i]!=null)));
+  const tot=(k,a,idx)=>{const xs=idx.map(i=>V[k][a][i]).filter(v=>v!=null);return xs.length?xs.reduce((s,v)=>s+v,0):null;};
+  return {an,items,V,comum,tot,all:CMP_MES.map((_,i)=>i)};}
+function cmpAnoTab(mets){if(!mets.length)return '';const {an,items,comum,tot,all}=cmpAnoDados(mets);const kk=items[items.length-1][0];
+  const per=comum.length&&comum.length<12?`${CMP_MES[comum[0]]}–${CMP_MES[comum[comum.length-1]]}`:'';
+  const dc=(x,y)=>{if(x==null||y==null||!y)return '<td class="r mono">—</td><td class="r mono">—</td>';const d=x-y,p=d/y*100;const cl=d>0?'var(--critical)':d<0?'var(--good)':'inherit';return `<td class="r mono" style="color:${cl}">${d>0?'+ ':d<0?'− ':''}${brl0(Math.abs(d))}</td><td class="r mono" style="color:${cl}">${d>0?'▲ +':d<0?'▼ −':''}${Math.abs(p).toFixed(1).replace('.',',')}%</td>`;};
+  const nm=items.length>1?'da soma':'';
+  return `<div class="cmp-ano"><div class="cmp-t" style="margin:14px 0 6px">Resumo por ano ${items.length>1?'<span class="hint">· itens separados e somados</span>':''}</div><div class="tablewrap"><table class="mini cmp-at"><thead><tr><th>Ano</th>${items.map(([k,l])=>`<th class="r${k===kk&&items.length>1?' sum':''}">${esc(l.replace(/Serviços de /i,''))}</th>`).join('')}<th class="r">Dif. vs. ano anterior</th><th class="r">%</th>${per?`<th class="r">${items.length>1?'Soma':'Total'} ${per}</th><th class="r">Dif. ${per}</th><th class="r">%</th>`:''}</tr></thead>
+   <tbody>${an.map((a,j)=>{const p=an[j-1];return `<tr><td><b>${a}</b></td>${items.map(([k])=>{const v=tot(k,a,all);return `<td class="r mono${k===kk&&items.length>1?' sum':''}">${v==null?'—':brl0(v)}</td>`;}).join('')}${p?dc(tot(kk,a,all),tot(kk,p,all)):'<td class="r hint">—</td><td></td>'}${per?`<td class="r mono">${brl0(tot(kk,a,comum)||0)}</td>${p?dc(tot(kk,a,comum),tot(kk,p,comum)):'<td class="r hint">—</td><td></td>'}`:''}</tr>`;}).join('')}</tbody></table></div>
+   ${per?`<p class="hint" style="margin:6px 0 0">O ano inteiro só é comparável quando os dois anos estão completos. As colunas "${per}" comparam os mesmos meses em todos os anos.</p>`:''}</div>`;}
+function cmpExcel(){if(!window.XLSX){toast('Excel indisponível nesta visualização');return;}const mets=CMP_MET().filter(([k])=>F.cmpM.has(k));if(!mets.length){toast('Escolha pelo menos um item');return;}
+  const {an,items,V,comum,tot,all}=cmpAnoDados(mets);const kk=items[items.length-1][0];const per=comum.length&&comum.length<12?`${CMP_MES[comum[0]]}–${CMP_MES[comum[comum.length-1]]}`:'';
+  const r2=v=>v==null?'':Math.round(v*100)/100;const pc=(x,y)=>x==null||y==null||!y?'':Math.round((x-y)/y*10000)/10000;
+  const R=[[`Comparativo entre anos · ${items.map(x=>x[1]).join(' | ')}`],[],['Ano',...items.map(x=>x[1]),'Diferença vs. ano anterior (R$)','Diferença (%)',...(per?[`Total ${per}`,`Diferença ${per} (R$)`,`Diferença ${per} (%)`]:[])]];
+  an.forEach((a,j)=>{const p=an[j-1];const x=tot(kk,a,all),y=p?tot(kk,p,all):null;const xc=tot(kk,a,comum),yc=p?tot(kk,p,comum):null;
+    R.push([a,...items.map(([k])=>r2(tot(k,a,all))),p&&x!=null&&y!=null?r2(x-y):'',p?pc(x,y):'',...(per?[r2(xc),p&&xc!=null&&yc!=null?r2(xc-yc):'',p?pc(xc,yc):'']:[])]);});
+  if(per)R.push([],[`Os anos não têm todos os meses: as colunas "${per}" comparam só os meses que existem em todos os anos selecionados.`]);
+  const H=['Mês'];items.forEach(([,l])=>an.forEach(a=>H.push(`${l} ${a}`)));for(let j=1;j<an.length;j++)H.push(`Diferença ${an[j]} × ${an[j-1]} (R$)`,`Diferença ${an[j]} × ${an[j-1]} (%)`);
+  const M=[H,...CMP_MES.map((mn,i)=>{const row=[mn];items.forEach(([k])=>an.forEach(a=>row.push(r2(V[k][a][i]))));for(let j=1;j<an.length;j++){const x=V[kk][an[j]][i],y=V[kk][an[j-1]][i];row.push(x!=null&&y!=null?r2(x-y):'',pc(x,y));}return row;})];
+  M.push(['Total',...items.flatMap(([k])=>an.map(a=>r2(tot(k,a,all)))),...an.slice(1).flatMap((a,j)=>{const x=tot(kk,a,comum),y=tot(kk,an[j],comum);return [x!=null&&y!=null?r2(x-y):'',pc(x,y)];})]);
+  const wb=XLSX.utils.book_new();const fmt=(ws,moneyCols,pctCols,from)=>{const rg=XLSX.utils.decode_range(ws['!ref']);for(let r=from;r<=rg.e.r;r++){moneyCols.forEach(c=>{const ce=ws[XLSX.utils.encode_cell({r,c})];if(ce&&typeof ce.v==='number')ce.z='#,##0.00';});pctCols.forEach(c=>{const ce=ws[XLSX.utils.encode_cell({r,c})];if(ce&&typeof ce.v==='number')ce.z='0.0%';});}};
+  const w1=XLSX.utils.aoa_to_sheet(R);const n1=items.length;fmt(w1,[...Array(n1).keys()].map(i=>i+1).concat([n1+1,n1+3,n1+4]),[n1+2,n1+5],3);w1['!cols']=[{wch:8},...items.map(()=>({wch:22})),{wch:22},{wch:12},{wch:18},{wch:20},{wch:14}];XLSX.utils.book_append_sheet(wb,w1,'Resumo por ano');
+  const w2=XLSX.utils.aoa_to_sheet(M);const nv=items.length*an.length;const dcols=[];const pcols=[];for(let j=1;j<an.length;j++){dcols.push(nv+1+(j-1)*2);pcols.push(nv+2+(j-1)*2);}fmt(w2,[...Array(nv).keys()].map(i=>i+1).concat(dcols),pcols,1);w2['!cols']=[{wch:7},...H.slice(1).map(h=>({wch:Math.min(30,Math.max(14,h.length*0.8))}))];XLSX.utils.book_append_sheet(wb,w2,'Mês a mês');
+  if(per&&an.length>1)M.push([]),XLSX.utils.sheet_add_aoa(w2,[[],[`Linha Total: valores do ano inteiro; diferenças só nos meses comuns (${per}).`]],{origin:-1});
+  xlsSave(wb,`comparativo_${an.join('_')}.xlsx`);}
+
 function cmpChart(el,met){const an=cmpAnosSel();const D=cmpDados(met);const vs=an.flatMap(a=>D[a]).filter(x=>x!=null);if(!vs.length){el.innerHTML='<p class="hint">Sem dados.</p>';return;}
   const W=560,H=200,pl=44,pr=8,pt=10,pb=24;const mx=Math.max(1,...vs);const raw=mx/3,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(f=>f*mag).find(v=>v>=raw);const top=Math.ceil(mx/st)*st;
   const gw=(W-pl-pr)/12,y=v=>pt+(H-pt-pb)*(1-v/top);const kf=v=>v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+'mi':Math.round(v/1000)+'k';let s='';
