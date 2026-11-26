@@ -2620,8 +2620,46 @@ function ovWire(){const b=$('#ov-ns');if(!b)return;const sel=$('#ov-nm'),ta=$('#
   b.onclick=async()=>{if(noEdit())return;const v=ta.value.trim();try{await finWrite('budget',{nota:{[sel.value]:v||null}});toast('Comentário salvo');}catch(e){handleWriteErr(e);}};}
 const anoSel=ano=>{const a=finAnos();return a.length>1?`<label class="fld" style="min-width:110px"><span>Ano</span><select id="fg-ano">${a.map(y=>`<option ${y===ano?'selected':''}>${y}</option>`).join('')}</select></label>`:'';};
 function finGeral(box){const ano=finAno();const G=finGeralDados(ano);
-  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${cmpHtml()}${finCaixa(ano)}${histCard(canWrite===false)}${bkpCard(canWrite===false)}`;
-  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);cmpWire(renderFin);histWire();bkpWire();}
+  box.innerHTML=`${mesesChips(ano)}${finGeralTop(G,ano,canWrite===false)}${cmpHtml()}${finCaixa(ano)}${histCard(canWrite===false)}${expCard()}${bkpCard(canWrite===false)}`;
+  finGeralChart('#fg-chart',G);mesesChipsWire(box,renderFin);ovWire();cxWire(box);cmpWire(renderFin);histWire();bkpWire();expWire();}
+/* ---------- exportar para outro sistema (contratos e LPU por período) ---------- */
+function expMeses(){const s=new Set([...Object.values(F.lpu||{}).map(r=>r.mes),...contratos().map(c=>c.mes)].filter(m=>/^\d{4}-\d{2}$/.test(m||'')));return [...s].sort();}
+function expPer(){const ms=expMeses();const de=F.expDe||(ms.find(m=>m.endsWith('-01')&&m.startsWith(String(new Date().getFullYear())))||ms[0]||'');const ate=F.expAte||ms[ms.length-1]||'';return {ms,de,ate,dentro:m=>m&&m>=de&&m<=ate};}
+function expCard(){const {ms,de,ate}=expPer();if(!ms.length)return '';const op=v=>ms.map(m=>`<option value="${m}" ${m===v?'selected':''}>${mesCurto(m)}</option>`).join('');
+  return `<details class="card" id="exp-card" ${F.expOpen?'open':''}><summary><b>Exportar para outro sistema</b> <span class="hint">· histórico de contratos fixos e de LPU em Excel, por período</span></summary>
+   <div class="row" style="margin-top:10px;gap:8px;align-items:center"><label class="hint">De <select id="exp-de" style="width:auto">${op(de)}</select></label><label class="hint">até <select id="exp-ate" style="width:auto">${op(ate)}</select></label>
+   <button class="btn" id="exp-ctr">Baixar contratos fixos</button><button class="btn" id="exp-lpu">Baixar LPU</button></div>
+   <p class="hint" style="margin:8px 0 0">O período usa a competência (mês da NF). Contratos: uma linha por contrato e mês, com o cálculo completo, mais as atividades lançadas. LPU: uma linha por relatório e outra aba com todos os itens.</p></details>`;}
+function expCtr(){const {de,ate,dentro}=expPer();const TL=(F.cfg.terceiros||{}).lista||{};const L=contratos().filter(c=>dentro(c.mes)).sort((a,b)=>a.mes.localeCompare(b.mes)||String(a.nome).localeCompare(String(b.nome)));
+  if(!L.length){toast('Nenhum contrato no período');return;}
+  const C=[['Competência','Contrato','Terceiro','CNPJ do terceiro','Código(s) fornecedor','Conta','Descrição da conta','CAPEX/OPEX','Tipo','Nº NF','Emissão NF','Vencimento','Valor fixo / base (R$)','Meta (qtd)','Valor por atividade da meta (R$)','Atividades realizadas','Valor por atividade excedente (R$)','Excedente (R$)','Soma das atividades (R$)','Bonificações (R$)','Variáveis (R$)','Descrição das variáveis','Horas improdutivas','Valor hora improdutiva (R$)','Improdutivo (R$)','Motivo improdutivo','Desconto (R$)','Motivo do desconto','TOTAL (R$)','Mês fechado','Pago','Comentário']];
+  const A=[['Competência','Contrato','Terceiro','Conta','Protocolo / ID','Data','Cliente','Cidade','Atividade','Técnico','Valor (R$)']];const BB=[['Competência','Contrato','Terceiro','Bonificação','Valor (R$)']];
+  L.forEach(c=>{const m=c.mes;const x=ctrCalc(c,m);const md=x.md;const t=c.terc&&TL[c.terc]?TL[c.terc]:((terMatch({empresa:c.nome})||{}).t||null);const a=CONTA[c.conta]||{};
+    const vh=md.improdV!=null&&md.improdV!==''?Number(md.improdV)||0:Number(c.vHora)||0;
+    C.push([m,c.nome||'',t?t.nome:'',t?t.cnpj||'':'',t?codsDe(t).join(', '):'',c.conta||'',a.n||'',(a.g||'').toUpperCase(),TIPO_CTR[c.tipo]||c.tipo||'',c.nf||'',c.nfData?fmtData(c.nfData):'',c.venc?fmtData(c.venc):'',x.base,c.tipo==='meta'?(c.meta||{}).qtd||0:'',c.tipo==='meta'?(c.meta||{}).unit||0:'',c.tipo==='meta'?(Number(md.atividades)||0):(x.nAt||''),c.exc||'',x.exc,x.somaAt||'',x.bonus,x.varv||'',md.varDesc||'',Number(md.improdH)||'',vh||'',x.improd||'',md.improdMotivo||'',x.desc?-x.desc:'',md.descMotivo||'',x.total,md.closed?'sim':'não',md.pago?'sim':'não',c.coment||'']);
+    (md.ativs||[]).forEach(z=>A.push([m,c.nome||'',t?t.nome:'',c.conta||'',z.protocolo||'',z.data&&/^\d{4}-/.test(z.data)?fmtData(z.data):(z.data||''),z.cliente||'',z.cidade||'',z.atividade||'',z.tecnico||'',atVal(c,z)]));
+    (c.bonus||[]).forEach(b=>{const v=b.manual?Number((md.bonusManual||{})[b.id])||0:((md.checked||[]).includes(b.id)?Number(b.value)||0:0);if(v)BB.push([m,c.nome||'',t?t.nome:'',b.label||b.nome||'',v]);});});
+  const tot=L.reduce((s,c)=>s+ctrCalc(c,c.mes).total,0);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,xlsSheet(C,[10,30,28,20,18,7,30,8,24,10,11,11,14,9,14,10,14,13,14,13,13,30,10,12,13,26,12,26,14,9,7,40],[12,14,16,17,18,19,20,23,24,26,28]),'Contratos');
+  if(A.length>1)XLSX.utils.book_append_sheet(wb,xlsSheet(A,[10,30,28,7,16,11,34,18,30,20,13],[10]),'Atividades');
+  if(BB.length>1)XLSX.utils.book_append_sheet(wb,xlsSheet(BB,[10,30,28,34,13],[4]),'Bonificações pagas');
+  xlsSave(wb,`contratos_fixos_${de}_a_${ate}.xlsx`);toast(`${L.length} contrato(s)-mês exportados · total ${brl(tot)}`);}
+function expLpu(){const {de,ate,dentro}=expPer();const L=Object.entries(F.lpu||{}).filter(([,r])=>dentro(r.mes)).map(([id,r])=>({...terRes(r),id})).sort((a,b)=>a.mes.localeCompare(b.mes)||(a.data||'').localeCompare(b.data||'')||(a.empresa||'').localeCompare(b.empresa||''));
+  if(!L.length){toast('Nenhuma LPU no período');return;}const TL=(F.cfg.terceiros||{}).lista||{};
+  const R=[['Competência','ID do relatório','Data da atividade','Período (de)','Período (até)','Terceiro','Nome no PDF','CNPJ','Código(s) fornecedor','Técnicos','Cidade','Cliente / POP','ID / etiqueta','Protocolo','Fase','Aprovador','Conta','Descrição da conta','CAPEX/OPEX','Qtd. itens','TOTAL (R$)','Origem','Lido em','Editado em','Arquivo PDF']];
+  const I=[['Competência','ID do relatório','Data da atividade','Terceiro','Conta','Cliente / POP','ID / etiqueta','Código do item','Descrição','Fator','Classe','Medida','Valor unitário (R$)','Quantidade','Total do item (R$)']];
+  const dt=v=>v&&/^\d{4}-\d{2}-\d{2}/.test(v)?fmtData(v.slice(0,10)):(v||'');
+  L.forEach(r=>{const a=CONTA[r.conta]||{};const t=r.tercId&&TL[r.tercId];
+    R.push([r.mes,r.id,dt(r.data),dt(r.de),dt(r.ate),r.empresa||'',r.empresaLpu||'',r.cnpj||'',t?codsDe(t).join(', '):'',r.tecnicos||'',r.cidade||'',r.cliente||'',r.etiqueta||'',r.protocolo||'',r.fase||'',r.aprovador||'',r.conta||'',a.n||'',(a.g||'').toUpperCase(),(r.itens||[]).length,Number(r.total)||0,r.manual?'Lançamento manual':r.formato==='ocr'?'PDF (OCR)':'PDF',dt(r.lidoEm),dt(r.editadoEm),r.arquivo||(r.anexo&&r.anexo.nome)||'']);
+    (r.itens||[]).forEach(i=>I.push([r.mes,r.id,dt(r.data),r.empresa||'',r.conta||'',r.cliente||'',r.etiqueta||'',i.c||'',i.d||'',i.f??'',i.cl||'',i.m||'',Number(i.u)||0,Number(i.q)||0,Number(i.t)||0]));});
+  const tot=L.reduce((s,r)=>s+(Number(r.total)||0),0);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,xlsSheet(R,[10,14,11,11,11,28,28,20,18,28,18,30,14,14,10,18,7,30,8,8,13,16,11,11,30],[20]),'Relatórios');
+  XLSX.utils.book_append_sheet(wb,xlsSheet(I,[10,14,11,28,7,30,14,10,50,7,8,7,13,10,13],[12,14]),'Itens');
+  xlsSave(wb,`lpu_${de}_a_${ate}.xlsx`);toast(`${L.length} relatório(s) de LPU exportados · total ${brl(tot)}`);}
+function expWire(){const cd=$('#exp-card');if(!cd)return;cd.ontoggle=()=>{F.expOpen=cd.open;};
+  $('#exp-de').onchange=e=>{F.expDe=e.target.value;if(F.expAte&&F.expAte<F.expDe)F.expAte=F.expDe;renderFin();};$('#exp-ate').onchange=e=>{F.expAte=e.target.value;if(F.expDe&&F.expDe>F.expAte)F.expDe=F.expAte;renderFin();};
+  $('#exp-ctr').onclick=()=>{try{expCtr();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de contratos');}};$('#exp-lpu').onclick=()=>{try{expLpu();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de LPU');}};}
+
 /* ---------- cópia de segurança do financeiro (backup / restaurar) ---------- */
 function bkpDocs(){const d={};Object.entries(F.cfg||{}).forEach(([k,v])=>{if(v&&Object.keys(v).length)d['fin/'+k]=v;});Object.entries(F.lpu||{}).forEach(([k,v])=>{if(v)d['lpu/'+k]=v;});Object.entries(F.comb||{}).forEach(([k,v])=>{if(v)d['combustivel/'+k]=v;});return d;}
 function bkpCard(ro){const d=bkpDocs();const n=k=>Object.keys(d).filter(p=>p.startsWith(k+'/')).length;
