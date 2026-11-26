@@ -2628,8 +2628,8 @@ function expPer(){const ms=expMeses();const de=F.expDe||(ms.find(m=>m.endsWith('
 function expCard(){const {ms,de,ate}=expPer();if(!ms.length)return '';const op=v=>ms.map(m=>`<option value="${m}" ${m===v?'selected':''}>${mesCurto(m)}</option>`).join('');
   return `<details class="card" id="exp-card" ${F.expOpen?'open':''}><summary><b>Exportar para outro sistema</b> <span class="hint">· histórico de contratos fixos e de LPU em Excel, por período</span></summary>
    <div class="row" style="margin-top:10px;gap:8px;align-items:center"><label class="hint">De <select id="exp-de" style="width:auto">${op(de)}</select></label><label class="hint">até <select id="exp-ate" style="width:auto">${op(ate)}</select></label>
-   <button class="btn" id="exp-ctr">Baixar contratos fixos</button><button class="btn" id="exp-lpu">Baixar LPU</button></div>
-   <p class="hint" style="margin:8px 0 0">O período usa a competência (mês da NF). Contratos: uma linha por contrato e mês, com o cálculo completo, mais as atividades lançadas. LPU: uma linha por relatório e outra aba com todos os itens.</p></details>`;}
+   <button class="btn" id="exp-ctr">Baixar contratos fixos</button><button class="btn" id="exp-lpu">Baixar LPU</button><button class="btn" data-expct>Baixar por conta e terceiro</button></div>
+   <p class="hint" style="margin:8px 0 0">O período usa a competência (mês da NF). Por conta e terceiro: mês de referência, conta, terceiro, contrato fixo e LPU separados. Contratos: uma linha por contrato e mês, com o cálculo completo, mais as atividades lançadas. LPU: uma linha por relatório e outra aba com todos os itens.</p></details>`;}
 function expCtr(){const {de,ate,dentro}=expPer();const TL=(F.cfg.terceiros||{}).lista||{};const L=contratos().filter(c=>dentro(c.mes)).sort((a,b)=>a.mes.localeCompare(b.mes)||String(a.nome).localeCompare(String(b.nome)));
   if(!L.length){toast('Nenhum contrato no período');return;}
   const C=[['Competência','Contrato','Terceiro','CNPJ do terceiro','Código(s) fornecedor','Conta','Descrição da conta','CAPEX/OPEX','Tipo','Nº NF','Emissão NF','Vencimento','Valor fixo / base (R$)','Meta (qtd)','Valor por atividade da meta (R$)','Atividades realizadas','Valor por atividade excedente (R$)','Excedente (R$)','Soma das atividades (R$)','Bonificações (R$)','Variáveis (R$)','Descrição das variáveis','Horas improdutivas','Valor hora improdutiva (R$)','Improdutivo (R$)','Motivo improdutivo','Desconto (R$)','Motivo do desconto','TOTAL (R$)','Mês fechado','Pago','Comentário']];
@@ -2658,7 +2658,28 @@ function expLpu(){const {de,ate,dentro}=expPer();const L=Object.entries(F.lpu||{
   xlsSave(wb,`lpu_${de}_a_${ate}.xlsx`);toast(`${L.length} relatório(s) de LPU exportados · total ${brl(tot)}`);}
 function expWire(){const cd=$('#exp-card');if(!cd)return;cd.ontoggle=()=>{F.expOpen=cd.open;};
   $('#exp-de').onchange=e=>{F.expDe=e.target.value;if(F.expAte&&F.expAte<F.expDe)F.expAte=F.expDe;renderFin();};$('#exp-ate').onchange=e=>{F.expAte=e.target.value;if(F.expDe&&F.expDe>F.expAte)F.expDe=F.expAte;renderFin();};
-  $('#exp-ctr').onclick=()=>{try{expCtr();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de contratos');}};$('#exp-lpu').onclick=()=>{try{expLpu();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de LPU');}};}
+  $('#exp-ctr').onclick=()=>{try{expCtr();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de contratos');}};$('#exp-lpu').onclick=()=>{try{expLpu();}catch(e){console.error(e);toast('Não foi possível gerar o Excel de LPU');}};expCtWire(cd);}
+function expMesesCT(){const h=Object.keys((F.cfg.hist||{}).meses||{}).filter(x=>(F.cfg.hist.meses||{})[x]);return [...new Set([...expMeses(),...h])].sort();}
+const mesRef=m=>{const [y,mm]=m.split('-');return MESES_PT[+mm-1].slice(0,3).toLowerCase()+'/'+y;};
+function expContaTerc(){const ms=expMesesCT();const de=F.expDe||ms[0],ate=F.expAte||ms[ms.length-1];const M=ms.filter(m=>m>=de&&m<=ate);if(!M.length){toast('Nenhum mês no período');return;}
+  const r2=v=>Math.round((v||0)*100)/100;let temH=false;
+  const D=[];const S=[];M.forEach(m=>CONTAS.forEach(a=>{const L=compConta(a.c,m);let sc=0,sl=0,sh=0;
+    L.forEach(x=>{let nm=x.n;try{const h=terMatch({empresa:x.n});if(h&&h.t&&h.t.nome)nm=h.t.nome;}catch(e){}const c=x.sap?0:x.ctr||0,l=x.sap?0:x.lpu||0,hs=x.sap||0;if(!(c||l||hs))return;if(hs)temH=true;sc+=c;sl+=l;sh+=hs;D.push([mesRef(m),m,a.c+' · '+a.n,a.g.toUpperCase(),nm,r2(c),r2(l),r2(hs),r2(c+l+hs)]);});
+    const tot=execConta(a.c,m).total||0;const dif=r2(tot-(sc+sl+sh));if(Math.abs(dif)>=1){D.push([mesRef(m),m,a.c+' · '+a.n,a.g.toUpperCase(),'(valor sem detalhe por terceiro)',0,0,dif,dif]);sh+=dif;temH=true;}
+    if(sc||sl||sh)S.push([mesRef(m),m,a.c+' · '+a.n,a.g.toUpperCase(),r2(sc),r2(sl),r2(sh),r2(sc+sl+sh)]);}));
+  if(!D.length){toast('Nenhum valor no período');return;}
+  const cut=(rows,hi)=>temH?rows:rows.map(r=>r.filter((_,i)=>i!==hi));
+  const H1=['Mês de referência','Mês (AAAA-MM)','Conta contábil','CAPEX/OPEX','Terceiro / técnico','Contrato fixo (R$)','LPU (R$)','Histórico SAP (R$)','Total (R$)'];
+  const H2=['Mês de referência','Mês (AAAA-MM)','Conta contábil','CAPEX/OPEX','Contrato fixo (R$)','LPU (R$)','Histórico SAP (R$)','Total (R$)'];
+  const A1=cut([H1,...D],7),A2=cut([H2,...S],6);const n1=temH?[5,6,7,8]:[5,6,7],n2=temH?[4,5,6,7]:[4,5,6];
+  const wb=XLSX.utils.book_new();const w1=xlsSheet(A1,[12,10,36,9,36,16,14,...(temH?[16]:[]),14],n1);w1['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:A1.length-1,c:A1[0].length-1}})};XLSX.utils.book_append_sheet(wb,w1,'Por conta e terceiro');
+  const w2=xlsSheet(A2,[12,10,36,9,16,14,...(temH?[16]:[]),14],n2);w2['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:A2.length-1,c:A2[0].length-1}})};XLSX.utils.book_append_sheet(wb,w2,'Resumo por conta');
+  xlsSave(wb,`conta_contabil_por_terceiro_${de}_a_${ate}.xlsx`);toast(`${D.length} linha(s) · ${M.length} mês(es)`);}
+function expCtSel(id){const ms=expMesesCT();const de=F.expDe||ms[0],ate=F.expAte||ms[ms.length-1];const op=v=>ms.map(m=>`<option value="${m}" ${m===v?'selected':''}>${mesCurto(m)}</option>`).join('');
+  return ms.length?`<div class="row ct-exp" style="gap:8px;align-items:center;margin:4px 0 10px"><b style="font-size:13px">Relatório por conta e terceiro</b><span class="hint">(contrato fixo × LPU, mês a mês)</span><span class="grow"></span><label class="hint">De <select data-expde style="width:auto">${op(de)}</select></label><label class="hint">até <select data-expate style="width:auto">${op(ate)}</select></label><button class="btn small" data-expct>Baixar Excel</button></div>`:'';}
+function expCtWire(root){root.querySelectorAll('[data-expde]').forEach(s=>s.onchange=()=>{F.expDe=s.value;if(F.expAte&&F.expAte<F.expDe)F.expAte=F.expDe;renderFin();});root.querySelectorAll('[data-expate]').forEach(s=>s.onchange=()=>{F.expAte=s.value;if(F.expDe&&F.expDe>F.expAte)F.expDe=F.expAte;renderFin();});
+  root.querySelectorAll('[data-expct]').forEach(b=>b.onclick=()=>{try{expContaTerc();}catch(e){console.error(e);toast('Não foi possível gerar o relatório');}});}
+
 
 /* ---------- cópia de segurança do financeiro (backup / restaurar) ---------- */
 function bkpDocs(){const d={};Object.entries(F.cfg||{}).forEach(([k,v])=>{if(v&&Object.keys(v).length)d['fin/'+k]=v;});Object.entries(F.lpu||{}).forEach(([k,v])=>{if(v)d['lpu/'+k]=v;});Object.entries(F.comb||{}).forEach(([k,v])=>{if(v)d['combustivel/'+k]=v;});return d;}
@@ -2703,7 +2724,7 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
      <button class="btn small" id="fin-bg-save" style="align-self:end" ${ro}>Salvar</button><button class="btn ${semBud?'primary':''}" id="fin-bedit" style="align-self:end" aria-expanded="${bopen}">${bopen?'Fechar edição do budget':'Editar budget de '+mesCurto(m)+' por conta'}</button><div class="grow"></div>
      <div class="seg" style="align-self:end">${[['all','Todas'],['capex','CAPEX'],['opex','OPEX']].map(([k,l])=>`<button data-grp="${k}" aria-pressed="${F.grp===k}">${l}</button>`).join('')}</div></div>
    ${bopen?budgetEditor(m,ro):''}
-   <div class="card acc-list" style="padding:0"><div class="acc-hd"><span></span><span>Conta contábil</span><span class="r">Executado</span><span class="r">Budget</span><span>Uso do budget</span><span class="r">Saldo</span></div>${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);const u=b>0?x.total/b*100:null;
+   ${expCtSel()}<div class="card acc-list" style="padding:0"><div class="acc-hd"><span></span><span>Conta contábil</span><span class="r">Executado</span><span class="r">Budget</span><span>Uso do budget</span><span class="r">Saldo</span></div>${list.map(a=>{const x=execConta(a.c,m);const b=Number(((bud.contas||{})[a.c]||{})[m])||0;const com=((bud.coment||{})[a.c]||{})[m]||'';const op=F.open.has(a.c);const u=b>0?x.total/b*100:null;
      return `<div class="acc ${op?'open':''}" data-c="${a.c}"><button class="acch" aria-expanded="${op}"><span class="car">▸</span>
         <span class="acc-n"><span class="acc-t"><span class="gt ${a.g}">${a.g.toUpperCase()}</span><b class="mono">${a.c}</b> ${esc(a.n)}${com?' <span class="gt com">comentário</span>':''}</span><span class="acc-s">${x.total?(x.hist?'pago · histórico SAP':`LPU ${brl0(x.lpu)}${x.ctr>0?' · contratos '+brl0(x.ctr):''}`):'sem lançamentos no mês'}</span></span>
         <span class="acc-e r">${brl(x.total)}</span><span class="acc-b r">${b>0?brl0(b):'<span class="hint">—</span>'}</span>
@@ -2730,7 +2751,7 @@ function finConta(box,m){const t=finTotais(m);const bud=F.cfg.budget;const ro=ca
    <p class="hint">Barra verde até 85% do budget, amarela de 85% a 100% e vermelha acima do budget. Clique numa conta para editar o budget, ver a composição por terceiro e escrever comentário. O valor de LPU de cada conta vem dos PDFs lidos na aba "LPU · leitura de PDF"; quando o campo "LPU pela planilha de acompanhamento" está preenchido, ele é usado no lugar (é o caso dos meses de abril a setembro de 2026, lançados antes do leitor existir).</p>`;
   box.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>{F.grp=b.dataset.grp;renderFin();});
   const cci=$('#cc-it');if(cci)cci.onchange=()=>{F.ccIt=cci.value;renderFin();const e=$('#cc-it');if(e)e.scrollIntoView({block:'center'});};
-  $('#fin-bedit').onclick=()=>{F.bedit=bopen?0:true;renderFin();};if(bopen)budgetWire(m);
+  expCtWire(box);$('#fin-bedit').onclick=()=>{F.bedit=bopen?0:true;renderFin();};if(bopen)budgetWire(m);
   $('#fin-bg-save').onclick=async()=>{if(noEdit())return;const v=$('#fin-bg').value.trim();try{await finWrite('budget',{geral:{[m]:v===''?null:num(v)}});toast('Budget geral salvo');}catch(e){handleWriteErr(e);}};
   box.querySelectorAll('.acc').forEach(el=>{const c=el.dataset.c;el.querySelector('.acch').onclick=()=>{F.open.has(c)?F.open.delete(c):F.open.add(c);renderFin();};
     const sv=el.querySelector('[data-save]');if(sv)sv.onclick=async()=>{if(noEdit())return;const g=k=>el.querySelector(`[data-k="${k}"]`).value.trim();
